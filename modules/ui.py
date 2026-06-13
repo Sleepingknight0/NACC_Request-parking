@@ -61,23 +61,22 @@ def _theme_mode() -> str:
 def inject_global_css() -> None:
     mode = _theme_mode()
     colors = THEMES.get(mode, THEMES["เช้า"])
-    st.markdown(
-        f"""
+    css = """
         <style>
         :root {
-            --bg: {colors["bg"]};
-            --surface: {colors["surface"]};
-            --surface-2: {colors["surface_2"]};
-            --surface-3: {colors["surface_3"]};
-            --text: {colors["text"]};
-            --muted: {colors["muted"]};
-            --border: {colors["border"]};
-            --primary: {colors["primary"]};
-            --primary-hover: {colors["primary_hover"]};
-            --primary-soft: {colors["primary_soft"]};
-            --sidebar: {colors["sidebar"]};
-            --input: {colors["input"]};
-            --shadow: {colors["shadow"]};
+            --bg: __BG__;
+            --surface: __SURFACE__;
+            --surface-2: __SURFACE_2__;
+            --surface-3: __SURFACE_3__;
+            --text: __TEXT__;
+            --muted: __MUTED__;
+            --border: __BORDER__;
+            --primary: __PRIMARY__;
+            --primary-hover: __PRIMARY_HOVER__;
+            --primary-soft: __PRIMARY_SOFT__;
+            --sidebar: __SIDEBAR__;
+            --input: __INPUT__;
+            --shadow: __SHADOW__;
         }
 
         .stApp {
@@ -216,9 +215,25 @@ def inject_global_css() -> None:
             padding-bottom: 4rem;
         }
         </style>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+    replacements = {
+        "__BG__": colors["bg"],
+        "__SURFACE__": colors["surface"],
+        "__SURFACE_2__": colors["surface_2"],
+        "__SURFACE_3__": colors["surface_3"],
+        "__TEXT__": colors["text"],
+        "__MUTED__": colors["muted"],
+        "__BORDER__": colors["border"],
+        "__PRIMARY__": colors["primary"],
+        "__PRIMARY_HOVER__": colors["primary_hover"],
+        "__PRIMARY_SOFT__": colors["primary_soft"],
+        "__SIDEBAR__": colors["sidebar"],
+        "__INPUT__": colors["input"],
+        "__SHADOW__": colors["shadow"],
+    }
+    for token, value in replacements.items():
+        css = css.replace(token, value)
+    st.markdown(css, unsafe_allow_html=True)
 
 
 def render_page_title(title: str, subtitle: str | None = None) -> None:
