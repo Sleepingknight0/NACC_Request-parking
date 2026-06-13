@@ -58,8 +58,8 @@ def _theme_mode() -> str:
     st.markdown(
         f"""
         <nav class="theme-switcher" aria-label="เลือกธีม">
-            <a class="theme-icon-button{day_active}" href="?theme={THEME_QUERY_KEYS["เช้า"]}" title="ธีมเช้า" aria-label="ธีมเช้า">☀</a>
-            <a class="theme-icon-button{night_active}" href="?theme={THEME_QUERY_KEYS["กลางคืน"]}" title="ธีมกลางคืน" aria-label="ธีมกลางคืน">☾</a>
+            <a class="theme-icon-button{day_active}" href="?theme={THEME_QUERY_KEYS["เช้า"]}" target="_self" title="ธีมเช้า" aria-label="ธีมเช้า">☀</a>
+            <a class="theme-icon-button{night_active}" href="?theme={THEME_QUERY_KEYS["กลางคืน"]}" target="_self" title="ธีมกลางคืน" aria-label="ธีมกลางคืน">☾</a>
         </nav>
         """,
         unsafe_allow_html=True,
@@ -97,7 +97,7 @@ def inject_global_css() -> None:
         .theme-switcher {
             position: fixed;
             top: 14px;
-            right: 88px;
+            right: 190px;
             z-index: 100000;
             display: inline-flex;
             align-items: center;
@@ -163,6 +163,18 @@ def inject_global_css() -> None:
         div[data-testid="stDecoration"] * {
             color: var(--text) !important;
             fill: var(--text) !important;
+        }
+
+        header[data-testid="stHeader"] {
+            pointer-events: none;
+        }
+
+        header[data-testid="stHeader"] button,
+        header[data-testid="stHeader"] a,
+        header[data-testid="stHeader"] [role="button"],
+        header[data-testid="stHeader"] [data-testid="stToolbar"],
+        header[data-testid="stHeader"] [data-testid="stAppDeployButton"] {
+            pointer-events: auto;
         }
 
         section[data-testid="stSidebar"] {
@@ -322,7 +334,7 @@ def inject_global_css() -> None:
         @media (max-width: 760px) {
             .theme-switcher {
                 top: 12px;
-                right: 54px;
+                right: 110px;
             }
 
             .theme-icon-button {
