@@ -11,13 +11,57 @@ from modules.constants import (
     thai_to_field_map,
 )
 
+try:
+    import streamlit as st
+    from streamlit_gsheets import GSheetsConnection
+except Exception:  # pragma: no cover
+    st = None
+    GSheetsConnection = None
+
 
 DATA_DIR = Path(os.getenv("PARKING_APP_DATA_DIR", "data"))
+
+
+def _get_secret_value(section: str, key: str, default: str = "") -> str:
+    if st is None:
+        return default
+
+    try:
+        value = st.secrets.get(section, {}).get(key, default)
+    except Exception:
+        return default
+
+    return str(value or default)
+
+
+def _storage_backend() -> str:
+    """
+    Storage backend priority:
+    1. Environment variable PARKING_APP_STORAGE_BACKEND
+    2. Streamlit secrets [app].storage_backend
+    3. csv fallback
+
+    Valid values:
+    - csv
+    - gsheets
+    """
+    env_value = os.getenv("PARKING_APP_STORAGE_BACKEND", "").strip().lower()
+    if env_value:
+        return env_value
+
+    secret_value = _get_secret_value("app", "storage_backend", "csv").strip().lower()
+    return secret_value or "csv"
+
+
+def _use_gsheets() -> bool:
+    backend = _storage_backend()
+    return backend in {"gsheets", "google_sheets", "google-sheets"}
 
 
 def _path_for(worksheet: str) -> Path:
     if worksheet not in WORKSHEET_SCHEMAS:
         raise KeyError(f"Unknown worksheet: {worksheet}")
+
     return DATA_DIR / f"{worksheet}.csv"
 
 
@@ -27,10 +71,13 @@ def _empty_df(worksheet: str) -> pd.DataFrame:
 
 def _to_internal_headers(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
     """
-    Convert Thai Google Sheet headers to internal English field keys.
+    Convert Thai sheet headers to internal English field keys.
 
-    This allows Google Sheets / CSV files to keep Thai column headers while
-    the Python app continues using stable English field keys internally.
+    External sheet:
+        รหัสคำขอ, เลขหนังสือ, วันที่รับเรื่อง
+
+    Internal code:
+        request_id, book_no, received_date
     """
     if df is None:
         return _empty_df(worksheet)
@@ -42,13 +89,13 @@ def _to_internal_headers(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
         reverse_map.get(str(column).strip(), str(column).strip())
         for column in result.columns
     ]
+
     return result
 
 
 def _to_sheet_headers(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
     """
-    Convert internal English field keys to Thai headers before writing back
-    to CSV / Google Sheets.
+    Convert internal English field keys to Thai headers before writing.
     """
     result = df.copy()
     header_map = field_to_thai_map(worksheet)
@@ -57,16 +104,13 @@ def _to_sheet_headers(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
         header_map.get(str(column).strip(), str(column).strip())
         for column in result.columns
     ]
+
     return result
 
 
 def _normalize_columns(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
     """
-    Normalize any incoming dataframe into internal English field keys.
-
-    Accepted input:
-    - English headers, e.g. request_id, book_no
-    - Thai headers, e.g. รหัสคำขอ, เลขหนังสือ
+    Normalize dataframe to internal English field keys and required schema order.
     """
     if df is None or df.empty:
         return _empty_df(worksheet)
@@ -85,13 +129,40 @@ def _normalize_columns(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
     return normalized[WORKSHEET_SCHEMAS[worksheet] + extra_cols].fillna("")
 
 
+def get_connection():
+    """
+    Return Streamlit Google Sheets connection.
+
+    Required Streamlit secrets:
+
+    [connections.gsheets]
+    spreadsheet = "https://docs.google.com/spreadsheets/d/xxxx/edit"
+
+    [google_service_account]
+    ...
+    """
+    if st is None or GSheetsConnection is None:
+        raise RuntimeError(
+            "ไม่สามารถใช้ Google Sheets backend ได้ เพราะ streamlit_gsheets ยังไม่พร้อมใช้งาน"
+        )
+
+    return st.connection("gsheets", type=GSheetsConnection)
+
+
 def initialize_storage() -> None:
     """
-    Development CSV storage initializer.
+    CSV mode:
+        Create local CSV files with Thai headers.
 
-    CSV files will be created with Thai headers so they match the Google Sheet
-    convention used by the project.
+    Google Sheets mode:
+        Do not create worksheets automatically.
+        The spreadsheet must already contain worksheets named exactly:
+        Requests, Request_Dates, Vehicles, Guard_Tasks, Guard_Submissions,
+        Attachments, Audit_Log
     """
+    if _use_gsheets():
+        return
+
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     for worksheet in WORKSHEET_SCHEMAS:
@@ -103,23 +174,7 @@ def initialize_storage() -> None:
             empty_sheet.to_csv(path, index=False, encoding="utf-8-sig")
 
 
-def get_connection():
-    """
-    Reserved for future Google Sheets connection wiring.
-
-    Keep this function so later Google Sheets integration can replace the
-    CSV backend without changing the rest of the app.
-    """
-    return None
-
-
-def read_sheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
-    """
-    Read a worksheet and return dataframe with internal English field keys.
-
-    The source file may contain Thai headers. This function converts them
-    automatically.
-    """
+def _read_csv_sheet(worksheet: str) -> pd.DataFrame:
     initialize_storage()
 
     path = _path_for(worksheet)
@@ -131,19 +186,72 @@ def read_sheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
     return _normalize_columns(worksheet, df)
 
 
-def write_sheet(worksheet: str, df: pd.DataFrame) -> None:
-    """
-    Write dataframe using Thai headers externally.
-
-    Callers should pass internal English field keys.
-    The saved CSV / future Google Sheet will use Thai headers.
-    """
+def _write_csv_sheet(worksheet: str, df: pd.DataFrame) -> None:
     initialize_storage()
 
     normalized = _normalize_columns(worksheet, df.copy())
     sheet_df = _to_sheet_headers(worksheet, normalized)
 
     sheet_df.to_csv(_path_for(worksheet), index=False, encoding="utf-8-sig")
+
+
+def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
+    conn = get_connection()
+
+    try:
+        df = conn.read(worksheet=worksheet, ttl=ttl)
+    except Exception as exc:
+        raise RuntimeError(
+            f"อ่าน worksheet '{worksheet}' จาก Google Sheets ไม่สำเร็จ "
+            f"กรุณาตรวจสอบชื่อแท็บ สิทธิ์ service account และ Streamlit secrets: {exc}"
+        ) from exc
+
+    return _normalize_columns(worksheet, df)
+
+
+def _write_gsheet(worksheet: str, df: pd.DataFrame) -> None:
+    conn = get_connection()
+
+    normalized = _normalize_columns(worksheet, df.copy())
+    sheet_df = _to_sheet_headers(worksheet, normalized)
+
+    try:
+        conn.update(worksheet=worksheet, data=sheet_df)
+    except Exception as exc:
+        raise RuntimeError(
+            f"เขียน worksheet '{worksheet}' ไปยัง Google Sheets ไม่สำเร็จ "
+            f"กรุณาตรวจสอบสิทธิ์ service account และ Streamlit secrets: {exc}"
+        ) from exc
+
+
+def read_sheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
+    """
+    Read worksheet and return internal English field keys.
+    """
+    if worksheet not in WORKSHEET_SCHEMAS:
+        raise KeyError(f"Unknown worksheet: {worksheet}")
+
+    if _use_gsheets():
+        return _read_gsheet(worksheet, ttl=ttl)
+
+    return _read_csv_sheet(worksheet)
+
+
+def write_sheet(worksheet: str, df: pd.DataFrame) -> None:
+    """
+    Write dataframe to selected backend.
+
+    Callers use English field keys.
+    External storage uses Thai headers.
+    """
+    if worksheet not in WORKSHEET_SCHEMAS:
+        raise KeyError(f"Unknown worksheet: {worksheet}")
+
+    if _use_gsheets():
+        _write_gsheet(worksheet, df)
+        return
+
+    _write_csv_sheet(worksheet, df)
 
 
 def append_rows(worksheet: str, rows: list[dict]) -> None:
@@ -235,11 +343,10 @@ def list_guard_submissions(task_id: str | None = None) -> pd.DataFrame:
 
 def validate_storage_schema() -> dict[str, list[str]]:
     """
-    Check missing internal fields after Thai-to-English header conversion.
+    Return missing internal fields after Thai-to-English header conversion.
 
     Returns:
-        {} if healthy.
-        {"Requests": ["book_no", ...]} if missing columns are found.
+        {} if schema is healthy.
     """
     problems: dict[str, list[str]] = {}
 
