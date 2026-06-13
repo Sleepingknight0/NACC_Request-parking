@@ -1,7 +1,13 @@
-"""Streamlit Cloud entrypoint.
+import streamlit as st
 
-The main app lives in app.py for local development. Streamlit Cloud commonly
-defaults to streamlit_app.py, so this wrapper keeps both entrypoints working.
-"""
+from modules.constants import APP_NAME
+from modules.home import render_home
 
-import app  # noqa: F401
+
+st.set_page_config(
+    page_title=APP_NAME,
+    page_icon="📝",
+    layout="wide",
+)
+
+render_home()
