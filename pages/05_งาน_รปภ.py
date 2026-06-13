@@ -3,10 +3,10 @@ import streamlit as st
 
 from modules.pdf_generator import build_parking_pdf
 from modules.sheets import get_request_by_id, list_vehicles, read_sheet
-from modules.ui import inject_global_css, render_page_title
+from modules.ui import inject_global_css, render_dataframe, render_page_title
 
 
-st.set_page_config(page_title="งาน รปภ.", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="งาน รปภ.", page_icon="icon.svg", layout="wide")
 inject_global_css()
 render_page_title("งาน รปภ.", "ดูงานวันนี้ พรุ่งนี้ งานค้าง และดาวน์โหลด PDF")
 
@@ -32,11 +32,7 @@ for title, df in sections.items():
     if df.empty:
         st.caption("ไม่มีรายการ")
         continue
-    st.dataframe(
-        df[["task_id", "parking_date", "source_agency", "parking_location", "car_count", "status"]],
-        use_container_width=True,
-        hide_index=True,
-    )
+    render_dataframe(df, ["task_id", "parking_date", "source_agency", "parking_location", "car_count", "status"])
 
 st.subheader("ดาวน์โหลด PDF งานที่เลือก")
 task_id = st.selectbox("เลือกงาน", tasks["task_id"].tolist())

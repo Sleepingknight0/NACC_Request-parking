@@ -8,7 +8,7 @@ from modules.ui import inject_global_css, render_page_title
 from modules.validators import validate_guard_submission
 
 
-st.set_page_config(page_title="ส่งงาน รปภ.", page_icon="📷", layout="wide")
+st.set_page_config(page_title="ส่งงาน รปภ.", page_icon="icon.svg", layout="wide")
 inject_global_css()
 render_page_title("ส่งงาน รปภ.", "อัปโหลดรูปใกล้และรูปไกลก่อนส่งงาน")
 

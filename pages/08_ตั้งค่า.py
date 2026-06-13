@@ -1,11 +1,12 @@
+import pandas as pd
 import streamlit as st
 
 from modules.constants import NACC_DEPARTMENTS, PARKING_LOCATIONS, WORKSHEET_SCHEMAS
 from modules.sheets import initialize_storage, read_sheet
-from modules.ui import inject_global_css, render_page_title
+from modules.ui import inject_global_css, render_dataframe, render_page_title
 
 
-st.set_page_config(page_title="ตั้งค่า", page_icon="⚙️", layout="wide")
+st.set_page_config(page_title="ตั้งค่า", page_icon="icon.svg", layout="wide")
 inject_global_css()
 render_page_title("ตั้งค่า", "ค่าคงที่และตรวจสุขภาพข้อมูล")
 
@@ -14,13 +15,34 @@ initialize_storage()
 st.subheader("Worksheet schema")
 for name, columns in WORKSHEET_SCHEMAS.items():
     with st.expander(name):
-        st.write(columns)
+        render_dataframe(
+            pd.DataFrame(
+                {
+                    "ลำดับ": range(1, len(columns) + 1),
+                    "field_key": columns,
+                }
+            )
+        )
 
 st.subheader("สำนัก/หน่วยงาน")
-st.write(NACC_DEPARTMENTS)
+render_dataframe(
+    pd.DataFrame(
+        {
+            "ลำดับ": range(1, len(NACC_DEPARTMENTS) + 1),
+            "สำนัก/หน่วยงาน": NACC_DEPARTMENTS,
+        }
+    )
+)
 
 st.subheader("จุดจอด")
-st.write(PARKING_LOCATIONS)
+render_dataframe(
+    pd.DataFrame(
+        {
+            "ลำดับ": range(1, len(PARKING_LOCATIONS) + 1),
+            "จุดจอด": PARKING_LOCATIONS,
+        }
+    )
+)
 
 st.subheader("Data health checks")
 requests = read_sheet("Requests")

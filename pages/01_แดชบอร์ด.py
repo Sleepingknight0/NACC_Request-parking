@@ -2,10 +2,10 @@ import pandas as pd
 import streamlit as st
 
 from modules.sheets import read_sheet
-from modules.ui import inject_global_css, render_page_title
+from modules.ui import inject_global_css, render_dataframe, render_page_title
 
 
-st.set_page_config(page_title="แดชบอร์ด", page_icon="📊", layout="wide")
+st.set_page_config(page_title="แดชบอร์ด", page_icon="icon.svg", layout="wide")
 inject_global_css()
 render_page_title("แดชบอร์ด", "ภาพรวมงานตามเดือน สถานะ และงานค้าง")
 
@@ -36,12 +36,12 @@ col7.metric("งานยกเลิก", len(month_tasks[month_tasks["status"]
 st.subheader("งานวันนี้")
 today = pd.Timestamp.today().date().isoformat()
 today_tasks = month_tasks[month_tasks["parking_date"].astype(str) == today] if not month_tasks.empty else month_tasks
-st.dataframe(today_tasks, use_container_width=True, hide_index=True)
+render_dataframe(today_tasks)
 
 st.subheader("งานค้าง")
 pending = month_tasks[month_tasks["status"].isin(["pending", "in_progress"])] if not month_tasks.empty else month_tasks
-st.dataframe(pending, use_container_width=True, hide_index=True)
+render_dataframe(pending)
 
 st.subheader("งานส่งแล้วรอตรวจ")
 submitted = month_tasks[month_tasks["status"] == "submitted"] if not month_tasks.empty else month_tasks
-st.dataframe(submitted, use_container_width=True, hide_index=True)
+render_dataframe(submitted)

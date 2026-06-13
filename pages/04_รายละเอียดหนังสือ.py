@@ -10,10 +10,10 @@ from modules.sheets import (
     list_vehicles,
     read_sheet,
 )
-from modules.ui import inject_global_css, render_page_title, render_status
+from modules.ui import inject_global_css, render_dataframe, render_page_title, render_status
 
 
-st.set_page_config(page_title="รายละเอียดหนังสือ", page_icon="📄", layout="wide")
+st.set_page_config(page_title="รายละเอียดหนังสือ", page_icon="icon.svg", layout="wide")
 inject_global_css()
 render_page_title("รายละเอียดหนังสือ", "ตรวจสอบ แก้สถานะ ยกเลิก และดาวน์โหลด PDF")
 
@@ -45,13 +45,13 @@ active_plates = vehicles[vehicles["status"] == "active"]["plate_no"].tolist() if
 tasks = list_guard_tasks(request_id)
 
 st.subheader("วันที่จอด")
-st.dataframe(dates, use_container_width=True, hide_index=True)
+render_dataframe(dates)
 
 st.subheader("ทะเบียนรถ")
-st.dataframe(vehicles, use_container_width=True, hide_index=True)
+render_dataframe(vehicles)
 
 st.subheader("งาน รปภ.")
-st.dataframe(tasks, use_container_width=True, hide_index=True)
+render_dataframe(tasks)
 
 if not tasks.empty:
     selected_task = st.selectbox("เลือกงานสำหรับ PDF/ตรวจงาน", tasks["task_id"].tolist())
@@ -78,7 +78,7 @@ if not tasks.empty:
 st.subheader("รูปส่งงาน")
 submissions = list_guard_submissions()
 request_submissions = submissions[submissions["request_id"].astype(str) == request_id] if not submissions.empty else submissions
-st.dataframe(request_submissions, use_container_width=True, hide_index=True)
+render_dataframe(request_submissions)
 
 with st.expander("ยกเลิกข้อมูล"):
     reason = st.text_area("เหตุผลยกเลิก")

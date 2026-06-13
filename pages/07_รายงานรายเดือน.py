@@ -2,10 +2,10 @@ import pandas as pd
 import streamlit as st
 
 from modules.sheets import read_sheet
-from modules.ui import inject_global_css, render_page_title
+from modules.ui import inject_global_css, render_dataframe, render_page_title
 
 
-st.set_page_config(page_title="รายงานรายเดือน", page_icon="📅", layout="wide")
+st.set_page_config(page_title="รายงานรายเดือน", page_icon="icon.svg", layout="wide")
 inject_global_css()
 render_page_title("รายงานรายเดือน", "สรุปตามวันที่ สำนัก และจุดจอด")
 
@@ -21,7 +21,7 @@ month_dates = dates[dates["month_key"] == selected_month]
 joined = month_dates.merge(requests, on="request_id", how="left", suffixes=("", "_request"))
 
 st.subheader("ข้อมูลรายวัน")
-st.dataframe(joined, use_container_width=True, hide_index=True)
+render_dataframe(joined)
 
 st.subheader("สรุปตามสำนัก")
 agency_summary = joined.groupby("source_agency", dropna=False).agg(
@@ -29,7 +29,7 @@ agency_summary = joined.groupby("source_agency", dropna=False).agg(
     parking_dates=("request_date_id", "count"),
     cars=("car_count", lambda values: pd.to_numeric(values, errors="coerce").fillna(0).sum()),
 ).reset_index()
-st.dataframe(agency_summary, use_container_width=True, hide_index=True)
+render_dataframe(agency_summary)
 
 st.subheader("สรุปตามจุดจอด")
 location_summary = joined.groupby("parking_location", dropna=False).agg(
@@ -37,7 +37,7 @@ location_summary = joined.groupby("parking_location", dropna=False).agg(
     parking_dates=("request_date_id", "count"),
     cars=("car_count", lambda values: pd.to_numeric(values, errors="coerce").fillna(0).sum()),
 ).reset_index()
-st.dataframe(location_summary, use_container_width=True, hide_index=True)
+render_dataframe(location_summary)
 
 st.download_button(
     "ส่งออก CSV",

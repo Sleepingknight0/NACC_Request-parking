@@ -2,10 +2,10 @@ import pandas as pd
 import streamlit as st
 
 from modules.sheets import read_sheet
-from modules.ui import inject_global_css, render_page_title
+from modules.ui import inject_global_css, render_dataframe, render_page_title
 
 
-st.set_page_config(page_title="รายการหนังสือ", page_icon="🔎", layout="wide")
+st.set_page_config(page_title="รายการหนังสือ", page_icon="icon.svg", layout="wide")
 inject_global_css()
 render_page_title("รายการหนังสือ", "ค้นหาและกรองคำขอที่จอดรถ")
 
@@ -39,7 +39,7 @@ if query and not df.empty:
 
 if not df.empty:
     show_cols = ["request_id", "book_no", "received_date", "source_agency", "car_count", "parking_location", "status", "updated_at"]
-    st.dataframe(df[show_cols], use_container_width=True, hide_index=True)
+    render_dataframe(df, show_cols)
     st.download_button("ส่งออก CSV", df.to_csv(index=False).encode("utf-8-sig"), "parking_requests.csv", "text/csv")
 else:
     st.info("ไม่พบรายการ")

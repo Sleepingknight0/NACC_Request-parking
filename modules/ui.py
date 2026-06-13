@@ -260,7 +260,12 @@ def inject_global_css() -> None:
         div[data-testid="stTable"],
         div[data-testid="stAlert"],
         div[data-testid="stTabs"],
-        div[data-testid="stVerticalBlockBorderWrapper"] {
+        div[data-testid="stVerticalBlockBorderWrapper"],
+        div[data-testid="stJson"],
+        div[data-testid="stCodeBlock"],
+        div[data-testid="stFileUploader"],
+        div[data-testid="stFileUploader"] section,
+        div[data-testid="stFileUploader"] div[data-testid="stFileUploaderDropzone"] {
             background: var(--surface-3) !important;
             border-color: var(--border) !important;
             color: var(--text) !important;
@@ -282,6 +287,21 @@ def inject_global_css() -> None:
         div[data-baseweb="input"] * {
             color: var(--text) !important;
             fill: var(--text) !important;
+        }
+
+        div[data-testid="stNumberInput"] button,
+        div[data-testid="stNumberInput"] [role="button"],
+        div[data-testid="stFileUploader"] button,
+        div[data-testid="stDownloadButton"] button {
+            background: var(--primary-soft) !important;
+            color: var(--text) !important;
+            border-color: var(--border) !important;
+        }
+
+        div[data-testid="stFileUploader"] small,
+        div[data-testid="stFileUploader"] span,
+        div[data-testid="stFileUploader"] p {
+            color: var(--muted) !important;
         }
 
         input::placeholder,
@@ -324,8 +344,58 @@ def inject_global_css() -> None:
 
         [data-testid="stDataFrame"] *,
         [data-testid="stTable"] *,
+        [data-testid="stJson"] *,
+        [data-testid="stCodeBlock"] *,
         [data-testid="stElementToolbar"] * {
             color: var(--text) !important;
+        }
+
+        .nacc-empty-state {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--muted);
+            padding: 14px 16px;
+            margin: 4px 0 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .nacc-table {
+            min-width: 720px;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface-3);
+            margin: 4px 0 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .nacc-table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            margin: 4px 0 18px;
+        }
+
+        .nacc-table th,
+        .nacc-table td {
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 12px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 0.92rem;
+        }
+
+        .nacc-table th {
+            background: var(--surface);
+            font-weight: 800;
+        }
+
+        .nacc-table tr:last-child td {
+            border-bottom: 0;
         }
 
         hr {
@@ -397,3 +467,49 @@ def section_card(title: str, body: str | None = None) -> None:
     if body:
         content += f'<div class="nacc-muted">{html.escape(body)}</div>'
     st.markdown(f'<div class="nacc-card">{content}</div>', unsafe_allow_html=True)
+
+
+def render_dataframe(df, columns: list[str] | None = None, empty_text: str = "ไม่มีรายการ") -> None:
+    display_df = df
+    if columns is not None:
+        existing_columns = [column for column in columns if column in df.columns]
+        display_df = df[existing_columns] if existing_columns else df
+
+    if getattr(display_df, "empty", True):
+        st.markdown(f'<div class="nacc-empty-state">{html.escape(empty_text)}</div>', unsafe_allow_html=True)
+        return
+
+    max_rows = 200
+    truncated = len(display_df) > max_rows
+    visible_df = display_df.head(max_rows).fillna("")
+    headers = "".join(f"<th>{html.escape(str(column))}</th>" for column in visible_df.columns)
+    body_rows = []
+    for row in visible_df.to_dict(orient="records"):
+        cells = "".join(f"<td>{html.escape(str(value))}</td>" for value in row.values())
+        body_rows.append(f"<tr>{cells}</tr>")
+
+    note = ""
+    if truncated:
+        note = f'<div class="nacc-muted">แสดง {max_rows} รายการแรกจากทั้งหมด {len(display_df)} รายการ</div>'
+    table = f"""
+    <div class="nacc-table-wrap">
+        <table class="nacc-table">
+            <thead><tr>{headers}</tr></thead>
+            <tbody>{"".join(body_rows)}</tbody>
+        </table>
+    </div>
+    {note}
+    """
+    st.markdown(table, unsafe_allow_html=True)
+
+
+def render_key_value_table(rows: list[tuple[str, str]], empty_text: str = "ไม่มีข้อมูล") -> None:
+    if not rows:
+        st.markdown(f'<div class="nacc-empty-state">{html.escape(empty_text)}</div>', unsafe_allow_html=True)
+        return
+
+    table_rows = "".join(
+        f"<tr><th>{html.escape(str(label))}</th><td>{html.escape(str(value))}</td></tr>"
+        for label, value in rows
+    )
+    st.markdown(f'<table class="nacc-table"><tbody>{table_rows}</tbody></table>', unsafe_allow_html=True)

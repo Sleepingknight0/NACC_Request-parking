@@ -15,7 +15,7 @@ from modules.validators import (
 )
 
 
-st.set_page_config(page_title="บันทึกหนังสือ", page_icon="📝", layout="wide")
+st.set_page_config(page_title="บันทึกหนังสือ", page_icon="icon.svg", layout="wide")
 inject_global_css()
 render_page_title("บันทึกหนังสือ", "สร้างคำขอที่จอดรถพร้อมวันที่จอดและงาน รปภ.")
 
