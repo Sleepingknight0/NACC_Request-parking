@@ -201,9 +201,23 @@ def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
     try:
         df = conn.read(worksheet=worksheet, ttl=ttl)
     except Exception as exc:
+        if st is not None:
+            st.error(f"อ่านข้อมูลจาก Google Sheets ไม่สำเร็จ: {worksheet}")
+            st.info(
+                "ตรวจสอบ 4 จุดนี้: "
+                "1) ชื่อแท็บใน Google Sheet ต้องตรงกับชื่อ worksheet "
+                "2) แชร์ไฟล์ Google Sheet ให้ service account แล้ว "
+                "3) ตั้งค่า Streamlit Secrets ถูกต้อง "
+                "4) private_key ต้องมี \\n อยู่ในบรรทัดเดียว"
+            )
+
+            with st.expander("รายละเอียด error สำหรับแก้ระบบ"):
+                st.code(str(exc))
+
+            st.stop()
+
         raise RuntimeError(
-            f"อ่าน worksheet '{worksheet}' จาก Google Sheets ไม่สำเร็จ "
-            f"กรุณาตรวจสอบชื่อแท็บ สิทธิ์ service account และ Streamlit secrets: {exc}"
+            f"อ่าน worksheet '{worksheet}' จาก Google Sheets ไม่สำเร็จ"
         ) from exc
 
     return _normalize_columns(worksheet, df)
@@ -218,9 +232,23 @@ def _write_gsheet(worksheet: str, df: pd.DataFrame) -> None:
     try:
         conn.update(worksheet=worksheet, data=sheet_df)
     except Exception as exc:
+        if st is not None:
+            st.error(f"เขียนข้อมูลไปยัง Google Sheets ไม่สำเร็จ: {worksheet}")
+            st.info(
+                "ตรวจสอบ 4 จุดนี้: "
+                "1) service account ต้องมีสิทธิ์ Editor "
+                "2) ชื่อแท็บต้องตรง "
+                "3) หัวคอลัมน์ภาษาไทยต้องตรงกับ mapping "
+                "4) Google Sheet ไม่ควรถูกป้องกันช่วงเซลล์ที่แอปต้องเขียน"
+            )
+
+            with st.expander("รายละเอียด error สำหรับแก้ระบบ"):
+                st.code(str(exc))
+
+            st.stop()
+
         raise RuntimeError(
-            f"เขียน worksheet '{worksheet}' ไปยัง Google Sheets ไม่สำเร็จ "
-            f"กรุณาตรวจสอบสิทธิ์ service account และ Streamlit secrets: {exc}"
+            f"เขียน worksheet '{worksheet}' ไปยัง Google Sheets ไม่สำเร็จ"
         ) from exc
 
 
