@@ -196,9 +196,8 @@ def _write_csv_sheet(worksheet: str, df: pd.DataFrame) -> None:
 
 
 def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
-    conn = get_connection()
-
     try:
+        conn = get_connection()
         df = conn.read(worksheet=worksheet, ttl=ttl)
     except Exception as exc:
         if st is not None:
@@ -208,7 +207,7 @@ def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
                 "1) ชื่อแท็บใน Google Sheet ต้องตรงกับชื่อ worksheet "
                 "2) แชร์ไฟล์ Google Sheet ให้ service account แล้ว "
                 "3) ตั้งค่า Streamlit Secrets ถูกต้อง "
-                "4) private_key ต้องมี \\n อยู่ในบรรทัดเดียว"
+                "4) private_key ต้องเป็น PEM key ที่ขึ้นต้นด้วย BEGIN PRIVATE KEY"
             )
 
             with st.expander("รายละเอียด error สำหรับแก้ระบบ"):
