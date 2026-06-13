@@ -96,15 +96,15 @@ def inject_global_css() -> None:
 
         .theme-switcher {
             position: fixed;
-            top: 14px;
-            right: 190px;
+            top: 58px;
+            right: 24px;
             z-index: 100000;
             display: inline-flex;
             align-items: center;
             gap: 4px;
             padding: 4px;
-            background: var(--surface-3);
-            border: 1px solid var(--border);
+            background: var(--surface);
+            border: 2px solid var(--border);
             border-radius: 999px;
             box-shadow: var(--shadow);
         }
@@ -169,11 +169,17 @@ def inject_global_css() -> None:
             pointer-events: none;
         }
 
+        header[data-testid="stHeader"] * {
+            pointer-events: none;
+        }
+
         header[data-testid="stHeader"] button,
         header[data-testid="stHeader"] a,
         header[data-testid="stHeader"] [role="button"],
-        header[data-testid="stHeader"] [data-testid="stToolbar"],
-        header[data-testid="stHeader"] [data-testid="stAppDeployButton"] {
+        header[data-testid="stHeader"] [data-testid="stAppDeployButton"],
+        header[data-testid="stHeader"] [data-testid="stToolbar"] button,
+        header[data-testid="stHeader"] [data-testid="stToolbar"] a,
+        header[data-testid="stHeader"] [data-testid="stToolbar"] [role="button"] {
             pointer-events: auto;
         }
 
@@ -333,8 +339,8 @@ def inject_global_css() -> None:
 
         @media (max-width: 760px) {
             .theme-switcher {
-                top: 12px;
-                right: 110px;
+                top: 58px;
+                right: 16px;
             }
 
             .theme-icon-button {
