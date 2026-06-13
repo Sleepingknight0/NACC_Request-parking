@@ -1,0 +1,156 @@
+APP_NAME = "ระบบขอที่จอดรถ ป.ป.ช."
+
+REQUEST_STATUSES = ["draft", "pending", "active", "done", "cancelled"]
+REQUEST_DATE_STATUSES = ["pending", "active", "done", "cancelled"]
+VEHICLE_STATUSES = ["active", "cancelled"]
+GUARD_TASK_STATUSES = ["pending", "in_progress", "submitted", "done", "cancelled"]
+ATTACHMENT_STATUSES = ["active", "deleted", "replaced"]
+
+REQUEST_STATUS_LABELS = {
+    "draft": "ร่าง",
+    "pending": "รอดำเนินการ",
+    "active": "ใช้งานอยู่",
+    "done": "เสร็จสิ้น",
+    "cancelled": "ยกเลิก",
+}
+
+GUARD_TASK_STATUS_LABELS = {
+    "pending": "ยังไม่ได้ทำ",
+    "in_progress": "กำลังดำเนินการ",
+    "submitted": "ส่งงานแล้ว",
+    "done": "เสร็จสิ้น",
+    "cancelled": "ยกเลิก",
+}
+
+NACC_DEPARTMENTS = [
+    "สำนักกิจการคณะกรรมการ ป.ป.ช.",
+    "สำนักการประชุม",
+    "สำนักบริหารงานกลาง",
+    "สำนักตรวจสอบภายใน",
+    "สำนักตรวจราชการ",
+    "สำนักสืบสวนและกิจการพิเศษ",
+    "สำนักไต่สวนคดีพิเศษ",
+    "กลุ่มที่ปรึกษาสำนักงาน ป.ป.ช.",
+    "สำนักพัฒนาวิชาการด้านการศึกษาและกระบวนการมีส่วนร่วมต้านทุจริต",
+    "สำนักประเมินคุณธรรม ความโปร่งใส และส่งเสริมธรรมาภิบาล",
+    "สำนักกฎหมาย",
+    "สำนักบริหารทรัพยากรบุคคล",
+    "สำนักบริหารงานคลัง",
+    "สำนักสื่อสารองค์กร",
+    "สำนักเทคโนโลยีสารสนเทศ",
+    "สำนักนวัตกรรม เทคโนโลยี และภูมิสารสนเทศ",
+    "อื่นๆ (ระบุเพิ่มเติม)",
+]
+
+PARKING_LOCATIONS = [
+    "ข้างอาคาร 1 ฝั่งกองสลาก",
+    "หน้าอาคาร 3",
+    "หน้าอาคาร 2",
+    "บริเวณอาคารสถาบันฯ",
+    "หน้าอาคาร 4",
+    "ชั้นใต้ดินอาคาร 4",
+    "อาคาร 4",
+    "อาคาร 7",
+    "อาคาร 8",
+    "อื่นๆ (ระบุเพิ่มเติม)",
+]
+
+WORKSHEET_SCHEMAS = {
+    "Requests": [
+        "request_id",
+        "book_no",
+        "book_date",
+        "received_date",
+        "source_agency",
+        "car_count",
+        "parking_location",
+        "note",
+        "status",
+        "has_vehicle_plates",
+        "book_file_url",
+        "created_by",
+        "created_at",
+        "updated_at",
+        "cancelled_at",
+        "cancelled_by",
+        "cancelled_reason",
+    ],
+    "Request_Dates": [
+        "request_date_id",
+        "request_id",
+        "parking_date",
+        "parking_time",
+        "month_key",
+        "status",
+        "created_at",
+        "cancelled_at",
+        "cancelled_reason",
+    ],
+    "Vehicles": [
+        "vehicle_id",
+        "request_id",
+        "plate_no",
+        "vehicle_note",
+        "status",
+        "created_at",
+        "cancelled_at",
+        "cancelled_reason",
+    ],
+    "Guard_Tasks": [
+        "task_id",
+        "request_id",
+        "request_date_id",
+        "parking_date",
+        "parking_location",
+        "status",
+        "assigned_to",
+        "submitted_at",
+        "completed_at",
+        "created_at",
+        "updated_at",
+    ],
+    "Guard_Submissions": [
+        "submission_id",
+        "task_id",
+        "request_id",
+        "near_photo_url",
+        "far_photo_url",
+        "extra_photo_url",
+        "note",
+        "submitted_by",
+        "submitted_at",
+        "is_final",
+    ],
+    "Attachments": [
+        "attachment_id",
+        "request_id",
+        "task_id",
+        "file_type",
+        "file_name",
+        "file_url",
+        "mime_type",
+        "uploaded_by",
+        "uploaded_at",
+        "status",
+    ],
+    "Audit_Log": [
+        "log_id",
+        "action",
+        "target_table",
+        "target_id",
+        "old_value",
+        "new_value",
+        "user",
+        "created_at",
+    ],
+}
+
+ID_PREFIXES = {
+    "Requests": "REQ",
+    "Request_Dates": "DATE",
+    "Vehicles": "VEH",
+    "Guard_Tasks": "TASK",
+    "Guard_Submissions": "SUB",
+    "Attachments": "ATT",
+    "Audit_Log": "LOG",
+}
