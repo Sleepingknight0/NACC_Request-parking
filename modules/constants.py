@@ -174,6 +174,111 @@ WORKSHEET_SCHEMAS = {
     ],
 }
 
+WORKSHEET_HEADER_LABELS = {
+    "Requests": {
+        "request_id": "รหัสคำขอ",
+        "book_no": "เลขหนังสือ",
+        "book_date": "วันที่หนังสือ",
+        "received_date": "วันที่รับเรื่อง",
+        "source_agency": "สำนัก/หน่วยงาน",
+        "car_count": "จำนวนรถ",
+        "parking_location": "จุดจอด",
+        "note": "หมายเหตุ",
+        "status": "สถานะคำขอ",
+        "has_vehicle_plates": "มีทะเบียนรถ",
+        "book_file_url": "ลิงก์ไฟล์หนังสือ",
+        "created_by": "ผู้บันทึก",
+        "created_at": "วันที่สร้างข้อมูล",
+        "updated_at": "วันที่แก้ไขล่าสุด",
+        "cancelled_at": "วันที่ยกเลิก",
+        "cancelled_by": "ผู้ยกเลิก",
+        "cancelled_reason": "เหตุผลยกเลิก",
+    },
+    "Request_Dates": {
+        "request_date_id": "รหัสวันที่จอด",
+        "request_id": "รหัสคำขอ",
+        "parking_date": "วันที่จอด",
+        "parking_time": "เวลาที่จอด",
+        "month_key": "เดือนรายงาน",
+        "status": "สถานะวันที่จอด",
+        "created_at": "วันที่สร้างข้อมูล",
+        "cancelled_at": "วันที่ยกเลิก",
+        "cancelled_reason": "เหตุผลยกเลิก",
+    },
+    "Vehicles": {
+        "vehicle_id": "รหัสทะเบียน",
+        "request_id": "รหัสคำขอ",
+        "plate_no": "เลขทะเบียน",
+        "vehicle_note": "หมายเหตุทะเบียน",
+        "status": "สถานะทะเบียน",
+        "created_at": "วันที่สร้างข้อมูล",
+        "cancelled_at": "วันที่ยกเลิก",
+        "cancelled_reason": "เหตุผลยกเลิก",
+    },
+    "Guard_Tasks": {
+        "task_id": "รหัสงาน รปภ.",
+        "request_id": "รหัสคำขอ",
+        "request_date_id": "รหัสวันที่จอด",
+        "parking_date": "วันที่ปฏิบัติงาน",
+        "parking_location": "จุดจอด",
+        "status": "สถานะงาน",
+        "assigned_to": "ผู้รับผิดชอบ",
+        "submitted_at": "เวลาส่งงาน",
+        "completed_at": "เวลาปิดงาน",
+        "created_at": "วันที่สร้างงาน",
+        "updated_at": "วันที่แก้ไขล่าสุด",
+    },
+    "Guard_Submissions": {
+        "submission_id": "รหัสการส่งงาน",
+        "task_id": "รหัสงาน รปภ.",
+        "request_id": "รหัสคำขอ",
+        "near_photo_url": "รูปใกล้",
+        "far_photo_url": "รูปไกล",
+        "extra_photo_url": "รูปเสริม",
+        "note": "หมายเหตุการส่งงาน",
+        "submitted_by": "ผู้ส่งงาน",
+        "submitted_at": "เวลาส่งงาน",
+        "is_final": "ส่งงานครั้งสุดท้าย",
+    },
+    "Attachments": {
+        "attachment_id": "รหัสไฟล์แนบ",
+        "request_id": "รหัสคำขอ",
+        "task_id": "รหัสงาน รปภ.",
+        "file_type": "ประเภทไฟล์",
+        "file_name": "ชื่อไฟล์",
+        "file_url": "ลิงก์ไฟล์",
+        "mime_type": "MIME type",
+        "uploaded_by": "ผู้อัปโหลด",
+        "uploaded_at": "เวลาอัปโหลด",
+        "status": "สถานะไฟล์",
+    },
+    "Audit_Log": {
+        "log_id": "รหัส log",
+        "action": "การกระทำ",
+        "target_table": "ตารางเป้าหมาย",
+        "target_id": "รหัสเป้าหมาย",
+        "old_value": "ค่าเดิม",
+        "new_value": "ค่าใหม่",
+        "user": "ผู้กระทำ",
+        "created_at": "เวลาบันทึก log",
+    },
+}
+
+def thai_headers_for(worksheet: str) -> list[str]:
+    """Return Thai headers for a worksheet in WORKSHEET_SCHEMAS order."""
+    labels = WORKSHEET_HEADER_LABELS[worksheet]
+    return [labels[field_key] for field_key in WORKSHEET_SCHEMAS[worksheet]]
+
+
+def field_to_thai_map(worksheet: str) -> dict[str, str]:
+    """Map internal English field keys to Thai Google Sheet headers."""
+    return WORKSHEET_HEADER_LABELS[worksheet].copy()
+
+
+def thai_to_field_map(worksheet: str) -> dict[str, str]:
+    """Map Thai Google Sheet headers back to internal English field keys."""
+    return {thai: field_key for field_key, thai in WORKSHEET_HEADER_LABELS[worksheet].items()}
+
 ID_PREFIXES = {
     "Requests": "REQ",
     "Request_Dates": "DATE",
