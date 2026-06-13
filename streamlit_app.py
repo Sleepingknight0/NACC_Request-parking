@@ -6,7 +6,7 @@ from modules.home import render_home
 
 st.set_page_config(
     page_title=APP_NAME,
-    page_icon="📝",
+    page_icon="icon.svg",
     layout="wide",
 )
 
