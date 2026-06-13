@@ -8,6 +8,8 @@ from modules.constants import GUARD_TASK_STATUS_LABELS, REQUEST_STATUS_LABELS
 
 
 THEME_OPTIONS = ("เช้า", "กลางคืน")
+THEME_QUERY_VALUES = {"day": "เช้า", "light": "เช้า", "night": "กลางคืน", "dark": "กลางคืน"}
+THEME_QUERY_KEYS = {"เช้า": "day", "กลางคืน": "night"}
 
 THEMES = {
     "เช้า": {
@@ -44,18 +46,25 @@ THEMES = {
 
 
 def _theme_mode() -> str:
-    if "nacc_theme_mode" not in st.session_state:
-        st.session_state.nacc_theme_mode = THEME_OPTIONS[0]
+    query_theme = st.query_params.get("theme", "")
+    if isinstance(query_theme, list):
+        query_theme = query_theme[0] if query_theme else ""
 
-    with st.sidebar:
-        st.caption("ธีม")
-        return st.radio(
-            "เลือกธีม",
-            THEME_OPTIONS,
-            key="nacc_theme_mode",
-            horizontal=True,
-            label_visibility="collapsed",
-        )
+    mode = THEME_QUERY_VALUES.get(str(query_theme).lower(), st.session_state.get("nacc_theme_mode", THEME_OPTIONS[0]))
+    st.session_state.nacc_theme_mode = mode
+
+    day_active = " is-active" if mode == "เช้า" else ""
+    night_active = " is-active" if mode == "กลางคืน" else ""
+    st.markdown(
+        f"""
+        <nav class="theme-switcher" aria-label="เลือกธีม">
+            <a class="theme-icon-button{day_active}" href="?theme={THEME_QUERY_KEYS["เช้า"]}" title="ธีมเช้า" aria-label="ธีมเช้า">☀</a>
+            <a class="theme-icon-button{night_active}" href="?theme={THEME_QUERY_KEYS["กลางคืน"]}" title="ธีมกลางคืน" aria-label="ธีมกลางคืน">☾</a>
+        </nav>
+        """,
+        unsafe_allow_html=True,
+    )
+    return mode
 
 
 def inject_global_css() -> None:
@@ -85,6 +94,44 @@ def inject_global_css() -> None:
             font-family: "Noto Sans Thai", "Sarabun", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
+        .theme-switcher {
+            position: fixed;
+            top: 14px;
+            right: 88px;
+            z-index: 100000;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px;
+            background: var(--surface-3);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            box-shadow: var(--shadow);
+        }
+
+        .theme-icon-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            color: var(--muted) !important;
+            text-decoration: none !important;
+            font-size: 18px;
+            font-weight: 800;
+            line-height: 1;
+            border: 1px solid transparent;
+            transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+        }
+
+        .theme-icon-button:hover,
+        .theme-icon-button.is-active {
+            background: var(--primary);
+            color: #FFFFFF !important;
+            border-color: var(--primary);
+        }
+
         h1, h2, h3 {
             color: var(--text);
             letter-spacing: 0;
@@ -98,6 +145,26 @@ def inject_global_css() -> None:
             color: var(--primary);
         }
 
+        .stApp,
+        div[data-testid="stAppViewContainer"],
+        div[data-testid="stMain"],
+        main,
+        section.main,
+        header[data-testid="stHeader"],
+        div[data-testid="stHeader"],
+        div[data-testid="stToolbar"],
+        div[data-testid="stDecoration"] {
+            background: var(--bg) !important;
+            color: var(--text) !important;
+        }
+
+        header[data-testid="stHeader"] *,
+        div[data-testid="stToolbar"] *,
+        div[data-testid="stDecoration"] * {
+            color: var(--text) !important;
+            fill: var(--text) !important;
+        }
+
         section[data-testid="stSidebar"] {
             background: var(--sidebar);
             border-right: 1px solid var(--border);
@@ -105,6 +172,18 @@ def inject_global_css() -> None:
 
         section[data-testid="stSidebar"] * {
             color: var(--text);
+        }
+
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a,
+        section[data-testid="stSidebar"] a {
+            color: var(--text) !important;
+            border-radius: 8px;
+        }
+
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover,
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] {
+            background: var(--primary-soft) !important;
+            color: var(--primary) !important;
         }
 
         div[data-testid="stMetric"] {
@@ -118,6 +197,11 @@ def inject_global_css() -> None:
         div[data-testid="stMetric"] label,
         div[data-testid="stMetric"] div {
             color: var(--text);
+        }
+
+        div[data-testid="stMetricValue"],
+        div[data-testid="stMetricLabel"] {
+            color: var(--text) !important;
         }
 
         .nacc-card {
@@ -155,17 +239,31 @@ def inject_global_css() -> None:
         div[data-testid="stForm"],
         div[data-testid="stExpander"],
         div[data-testid="stDataFrame"],
-        div[data-testid="stTable"] {
-            background: var(--surface-3);
-            border-color: var(--border);
+        div[data-testid="stTable"],
+        div[data-testid="stAlert"],
+        div[data-testid="stTabs"],
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            background: var(--surface-3) !important;
+            border-color: var(--border) !important;
+            color: var(--text) !important;
         }
 
         input, textarea,
         div[data-baseweb="select"] > div,
-        div[data-baseweb="base-input"] {
+        div[data-baseweb="base-input"],
+        div[data-baseweb="input"] {
             background: var(--input) !important;
             color: var(--text) !important;
             border-color: var(--border) !important;
+        }
+
+        input,
+        textarea,
+        div[data-baseweb="select"] *,
+        div[data-baseweb="base-input"] *,
+        div[data-baseweb="input"] * {
+            color: var(--text) !important;
+            fill: var(--text) !important;
         }
 
         input::placeholder,
@@ -199,11 +297,17 @@ def inject_global_css() -> None:
             color: var(--primary);
         }
 
-        div[role="radiogroup"] label {
-            background: var(--surface-3);
+        code {
+            background: var(--primary-soft) !important;
+            color: var(--primary) !important;
             border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        [data-testid="stDataFrame"] *,
+        [data-testid="stTable"] *,
+        [data-testid="stElementToolbar"] * {
+            color: var(--text) !important;
         }
 
         hr {
@@ -213,6 +317,19 @@ def inject_global_css() -> None:
         .block-container {
             padding-top: 2rem;
             padding-bottom: 4rem;
+        }
+
+        @media (max-width: 760px) {
+            .theme-switcher {
+                top: 12px;
+                right: 54px;
+            }
+
+            .theme-icon-button {
+                width: 30px;
+                height: 30px;
+                font-size: 17px;
+            }
         }
         </style>
         """
