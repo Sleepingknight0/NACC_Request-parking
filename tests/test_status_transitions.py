@@ -7,6 +7,7 @@ from modules.db import (
     accept_guard_package,
     cancel_request,
     cancel_request_date,
+    cancel_requests,
     cancel_vehicle,
     create_request,
     mark_guard_package_done,
@@ -139,6 +140,53 @@ def test_cancel_request_is_idempotent(tmp_path, monkeypatch):
     assert len(audit[audit["action"] == "cancel_request"]) == 1
 
 
+def test_cancel_requests_batches_and_is_idempotent(tmp_path, monkeypatch):
+    first_request_id = _create_request(
+        tmp_path,
+        monkeypatch,
+        book_no="QA-PROD-BATCH-1",
+        dates=["2026-06-14"],
+        plates=["TEST1"],
+    )
+    second_request_id = _create_request(
+        tmp_path,
+        monkeypatch,
+        book_no="QA-PROD-BATCH-2",
+        dates=["2026-06-15"],
+        plates=["TEST2"],
+    )
+
+    cancelled = cancel_requests(
+        [first_request_id, second_request_id],
+        "qa cleanup",
+        user="admin",
+    )
+    repeated = cancel_requests(
+        [first_request_id, second_request_id],
+        "qa cleanup",
+        user="admin",
+    )
+
+    assert cancelled == 2
+    assert repeated == 0
+
+    request_statuses = read_sheet("Requests").set_index("request_id")["status"].to_dict()
+    assert request_statuses[first_request_id] == "cancelled"
+    assert request_statuses[second_request_id] == "cancelled"
+
+    for worksheet in ["Request_Dates", "Guard_Tasks", "Vehicles"]:
+        df = read_sheet(worksheet)
+        statuses = set(df[df["request_id"].isin([first_request_id, second_request_id])]["status"])
+        assert statuses == {"cancelled"}
+
+    audit = read_sheet("Audit_Log")
+    audit_rows = audit[
+        (audit["action"] == "cancel_request")
+        & (audit["target_id"].isin([first_request_id, second_request_id]))
+    ]
+    assert len(audit_rows) == 2
+
+
 def test_cancel_one_date_keeps_one_package_active_when_other_dates_remain(tmp_path, monkeypatch):
     request_id = _create_request(
         tmp_path,
@@ -168,4 +216,3 @@ def test_cancel_vehicle_is_idempotent(tmp_path, monkeypatch):
     audit = read_sheet("Audit_Log")
     assert vehicles.iloc[0]["status"] == "cancelled"
     assert len(audit[audit["action"] == "cancel_vehicle"]) == 1
-

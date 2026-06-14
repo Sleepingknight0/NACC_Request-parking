@@ -10,7 +10,7 @@ from modules.constants import (
     sheet_title_for,
 )
 from modules.audit import write_audit_log
-from modules.db import cancel_request, repair_guard_task_packages
+from modules.db import cancel_requests, repair_guard_task_packages
 from modules.sheets import initialize_storage, normalize_all_worksheets, read_sheet, validate_storage_schema
 from modules.ui import inject_global_css, is_local_upload_url, render_dataframe, render_page_title
 
@@ -167,7 +167,10 @@ with st.expander("ยกเลิกข้อมูลทดสอบ QA-PROD"):
     )
     if not qa_rows.empty and st.button("ยกเลิก QA rows ทั้งหมด", type="primary", disabled=not confirm_qa_cleanup):
         with st.spinner("กำลังยกเลิกข้อมูลทดสอบ..."):
-            for _, row in qa_rows.iterrows():
-                cancel_request(row["request_id"], "ข้อมูลทดสอบ production QA", user="แอดมิน")
-        st.success("ยกเลิก QA rows แล้ว")
+            cancelled_count = cancel_requests(
+                qa_rows["request_id"].astype(str).tolist(),
+                "ข้อมูลทดสอบ production QA",
+                user="แอดมิน",
+            )
+        st.success(f"ยกเลิก QA rows แล้ว {cancelled_count} รายการ")
         st.rerun()

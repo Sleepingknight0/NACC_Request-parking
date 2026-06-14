@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 from modules.audit import write_audit_log
@@ -15,6 +16,7 @@ from modules.sheets import (
     list_request_dates,
     read_sheet,
     update_row_by_id,
+    write_sheet,
 )
 
 
@@ -189,6 +191,101 @@ def cancel_request(request_id: str, reason: str, user: str = "") -> None:
             {"status": "cancelled", "cancelled_at": timestamp, "cancelled_reason": reason},
         )
     write_audit_log("cancel_request", "Requests", request_id, old_value=request, new_value=request_updates, user=user)
+
+
+def cancel_requests(request_ids: list[str], reason: str, user: str = "") -> int:
+    clean_ids = list(dict.fromkeys(str(value).strip() for value in request_ids if str(value).strip()))
+    if not clean_ids:
+        return 0
+
+    requests = read_sheet("Requests")
+    if requests.empty:
+        return 0
+
+    target_mask = (
+        requests["request_id"].astype(str).isin(clean_ids)
+        & (requests["status"].astype(str) != "cancelled")
+    )
+    if not target_mask.any():
+        return 0
+
+    timestamp = now_iso()
+    target_rows = requests.loc[target_mask].copy()
+    target_ids = target_rows["request_id"].astype(str).tolist()
+    target_id_set = set(target_ids)
+
+    request_updates = {
+        "status": "cancelled",
+        "cancelled_at": timestamp,
+        "cancelled_by": user,
+        "cancelled_reason": reason,
+        "updated_at": timestamp,
+    }
+    for column, value in request_updates.items():
+        if column not in requests.columns:
+            requests[column] = ""
+        requests.loc[target_mask, column] = value
+    write_sheet("Requests", requests)
+
+    date_updates = {
+        "status": "cancelled",
+        "cancelled_at": timestamp,
+        "cancelled_reason": reason,
+    }
+    dates = read_sheet("Request_Dates")
+    if not dates.empty:
+        date_mask = (
+            dates["request_id"].astype(str).isin(target_id_set)
+            & (dates["status"].astype(str) != "cancelled")
+        )
+        if date_mask.any():
+            for column, value in date_updates.items():
+                if column not in dates.columns:
+                    dates[column] = ""
+                dates.loc[date_mask, column] = value
+            write_sheet("Request_Dates", dates)
+
+    tasks = read_sheet("Guard_Tasks")
+    if not tasks.empty:
+        task_mask = (
+            tasks["request_id"].astype(str).isin(target_id_set)
+            & (tasks["status"].astype(str) != "cancelled")
+        )
+        if task_mask.any():
+            tasks.loc[task_mask, "status"] = "cancelled"
+            tasks.loc[task_mask, "updated_at"] = timestamp
+            write_sheet("Guard_Tasks", tasks)
+
+    vehicles = read_sheet("Vehicles")
+    if not vehicles.empty:
+        vehicle_mask = (
+            vehicles["request_id"].astype(str).isin(target_id_set)
+            & (vehicles["status"].astype(str) != "cancelled")
+        )
+        if vehicle_mask.any():
+            for column, value in date_updates.items():
+                if column not in vehicles.columns:
+                    vehicles[column] = ""
+                vehicles.loc[vehicle_mask, column] = value
+            write_sheet("Vehicles", vehicles)
+
+    audit_rows = []
+    for _, old_row in target_rows.iterrows():
+        request_id = str(old_row["request_id"])
+        audit_rows.append(
+            {
+                "log_id": make_id(ID_PREFIXES["Audit_Log"]),
+                "action": "cancel_request",
+                "target_table": "Requests",
+                "target_id": request_id,
+                "old_value": json.dumps(old_row.to_dict(), ensure_ascii=False, sort_keys=True),
+                "new_value": json.dumps(request_updates, ensure_ascii=False, sort_keys=True),
+                "user": user,
+                "created_at": timestamp,
+            }
+        )
+    append_rows("Audit_Log", audit_rows)
+    return len(target_ids)
 
 
 def cancel_request_date(request_date_id: str, reason: str, user: str = "") -> None:
