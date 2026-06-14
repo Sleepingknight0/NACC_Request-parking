@@ -15,6 +15,7 @@ from modules.constants import (
     sheet_title_for,
     thai_to_field_map,
 )
+from modules.dates import to_iso_date, to_month_key
 
 try:
     import streamlit as st
@@ -176,6 +177,47 @@ def _to_sheet_values(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def _normalize_date_text(value) -> str:
+    text = "" if value is None else str(value).strip()
+    if not text or text.lower() == "nan":
+        return ""
+    try:
+        return to_iso_date(text)
+    except Exception:
+        return text[:10] if " 00:00:00" in text else text
+
+
+def _normalize_month_text(value, fallback_date: str = "") -> str:
+    text = "" if value is None else str(value).strip()
+    if re.fullmatch(r"\d{4}-\d{2}", text):
+        return text
+    try:
+        return to_month_key(fallback_date or text)
+    except Exception:
+        return text[:7] if re.match(r"\d{4}-\d{2}", text) else text
+
+
+def normalize_sheet_values(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
+    result = df.copy()
+    date_columns = {
+        "Requests": ["book_date", "received_date"],
+        "Request_Dates": ["parking_date"],
+        "Guard_Tasks": ["parking_date", "start_date", "end_date"],
+    }.get(worksheet, [])
+
+    for column in date_columns:
+        if column in result.columns:
+            result[column] = result[column].map(_normalize_date_text)
+
+    if worksheet == "Request_Dates" and "month_key" in result.columns:
+        result["month_key"] = result.apply(
+            lambda row: _normalize_month_text(row.get("month_key", ""), row.get("parking_date", "")),
+            axis=1,
+        )
+
+    return result
+
+
 def _to_sheet_headers(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
     """
     Convert internal English field keys to Thai headers before writing.
@@ -209,7 +251,8 @@ def _normalize_columns(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
         if col not in WORKSHEET_SCHEMAS[worksheet]
     ]
 
-    return normalized[WORKSHEET_SCHEMAS[worksheet] + extra_cols].fillna("")
+    ordered = normalized[WORKSHEET_SCHEMAS[worksheet] + extra_cols].fillna("")
+    return normalize_sheet_values(worksheet, ordered)
 
 
 def get_connection():
@@ -561,3 +604,8 @@ def validate_storage_schema() -> dict[str, list[str]]:
             problems[worksheet] = missing
 
     return problems
+
+
+def normalize_all_worksheets() -> None:
+    for worksheet in WORKSHEET_SCHEMAS:
+        write_sheet(worksheet, read_sheet(worksheet))

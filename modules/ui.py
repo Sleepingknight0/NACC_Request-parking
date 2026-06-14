@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -58,14 +59,18 @@ def _theme_mode() -> str:
 
     mode = THEME_QUERY_VALUES.get(str(query_theme).lower(), st.session_state.get("nacc_theme_mode", THEME_OPTIONS[0]))
     st.session_state.nacc_theme_mode = mode
+    role = st.session_state.get("user_role") or st.query_params.get("role", "")
+    if isinstance(role, list):
+        role = role[0] if role else ""
+    role_suffix = f"&role={quote(str(role))}" if role else ""
 
     day_active = " is-active" if mode == "day" else ""
     night_active = " is-active" if mode == "night" else ""
     st.markdown(
         f"""
         <nav class="theme-switcher" aria-label="เลือกธีม">
-            <a class="theme-icon-button{day_active}" href="?theme={THEME_QUERY_KEYS["day"]}" target="_self" title="ธีมเช้า" aria-label="ธีมเช้า">☀</a>
-            <a class="theme-icon-button{night_active}" href="?theme={THEME_QUERY_KEYS["night"]}" target="_self" title="ธีมกลางคืน" aria-label="ธีมกลางคืน">☾</a>
+            <a class="theme-icon-button{day_active}" href="?theme={THEME_QUERY_KEYS["day"]}{role_suffix}" target="_self" title="ธีมเช้า" aria-label="ธีมเช้า">☀</a>
+            <a class="theme-icon-button{night_active}" href="?theme={THEME_QUERY_KEYS["night"]}{role_suffix}" target="_self" title="ธีมกลางคืน" aria-label="ธีมกลางคืน">☾</a>
         </nav>
         """,
         unsafe_allow_html=True,
@@ -724,6 +729,63 @@ def _display_value(column: str, value, status_kind: str = "request") -> str:
     return text
 
 
+def is_local_upload_url(url: str | None) -> bool:
+    text = str(url or "").strip()
+    if not text:
+        return False
+    return text.startswith("uploads/") or text.startswith("uploads\\")
+
+
+def safe_file_link(url: str | None, label: str = "เปิดไฟล์") -> None:
+    text = str(url or "").strip()
+    if not text:
+        st.caption("ไม่มีไฟล์แนบ")
+        return
+    if is_local_upload_url(text):
+        st.warning("ไฟล์นี้อยู่ในพื้นที่ชั่วคราวของแอป ยังไม่ใช่ลิงก์ถาวร")
+        st.caption(text)
+        return
+    st.link_button(label, text, use_container_width=True)
+
+
+def with_role_url(href: str) -> str:
+    role = st.session_state.get("user_role") or st.query_params.get("role", "")
+    if isinstance(role, list):
+        role = role[0] if role else ""
+    if not role:
+        return href
+    separator = "&" if "?" in href else "?"
+    return f"{href}{separator}role={quote(str(role))}"
+
+
+def request_detail_url(request_id: str) -> str:
+    return with_role_url(f"/รายละเอียดหนังสือ?request_id={quote(str(request_id))}")
+
+
+def guard_submit_url(request_id: str) -> str:
+    return with_role_url(f"/ส่งงาน_รปภ?request_id={quote(str(request_id))}")
+
+
+def render_system_info_expander(row: dict, fields: list[str] | None = None) -> None:
+    system_fields = fields or [
+        "request_id",
+        "request_date_id",
+        "task_id",
+        "primary_task_id",
+        "task_ids",
+        "source_request_date_ids",
+        "created_at",
+        "updated_at",
+        "submitted_at",
+        "completed_at",
+    ]
+    values = [(field, row.get(field, "")) for field in system_fields if row.get(field, "")]
+    if not values:
+        return
+    with st.expander("ข้อมูลระบบ"):
+        render_key_value_table([(field, str(value)) for field, value in values])
+
+
 def to_display_dataframe(
     df,
     columns: list[str] | None = None,
@@ -791,6 +853,7 @@ def render_record_cards(
     df,
     *,
     title_field: str,
+    subtitle_field: str | None = None,
     fields: list[str],
     worksheet: str | None = None,
     status_kind: str = "request",
@@ -804,6 +867,11 @@ def render_record_cards(
     cards = []
     for row in df.head(max_cards).to_dict(orient="records"):
         title = _display_value(title_field, row.get(title_field, ""), status_kind)
+        subtitle_html = ""
+        if subtitle_field:
+            subtitle = _display_value(subtitle_field, row.get(subtitle_field, ""), status_kind)
+            if subtitle and subtitle != "-":
+                subtitle_html = f'<div class="nacc-muted">{html.escape(subtitle)}</div>'
         meta_lines = []
         for field in fields:
             if field == title_field:
@@ -814,6 +882,7 @@ def render_record_cards(
         cards.append(
             "<article class=\"nacc-record-card\">"
             f"<div class=\"nacc-record-card-title\">{html.escape(title)}</div>"
+            f"{subtitle_html}"
             f"<div class=\"nacc-record-card-meta\">{'<br>'.join(meta_lines)}</div>"
             "</article>"
         )
@@ -825,17 +894,25 @@ def render_record_cards(
     st.markdown(f'<div class="nacc-grid">{"".join(cards)}</div>{note}', unsafe_allow_html=True)
 
 
+PAGE_PATHS = {
+    "/แดชบอร์ด": "pages/01_แดชบอร์ด.py",
+    "/บันทึกหนังสือ": "pages/02_บันทึกหนังสือ.py",
+    "/รายการหนังสือ": "pages/03_รายการหนังสือ.py",
+    "/รายละเอียดหนังสือ": "pages/04_รายละเอียดหนังสือ.py",
+    "/งาน_รปภ": "pages/05_งาน_รปภ.py",
+    "/ส่งงาน_รปภ": "pages/06_ส่งงาน_รปภ.py",
+    "/รายงานรายเดือน": "pages/07_รายงานรายเดือน.py",
+    "/ตั้งค่า": "pages/08_ตั้งค่า.py",
+}
+
+
 def render_action_grid(actions: list[tuple[str, str, str]]) -> None:
-    cards = []
-    for label, href, description in actions:
-        cards.append(
-            "<a class=\"nacc-action-card\" "
-            f"href=\"{html.escape(href)}\" target=\"_self\">"
-            f"<strong>{html.escape(label)}</strong>"
-            f"<span>{html.escape(description)}</span>"
-            "</a>"
-        )
-    st.markdown(f'<div class="nacc-action-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+    cols = st.columns(min(len(actions), 3) or 1)
+    for index, (label, href, description) in enumerate(actions):
+        column = cols[index % len(cols)]
+        target = PAGE_PATHS.get(href, href)
+        with column:
+            st.page_link(target, label=label, help=description, use_container_width=True)
 
 
 def render_key_value_table(rows: list[tuple[str, str]], empty_text: str = "ไม่มีข้อมูล") -> None:

@@ -1,96 +1,155 @@
+from __future__ import annotations
+
+import pandas as pd
 import streamlit as st
 
-from modules.db import submit_guard_task
+from modules.auth import ROLE_ADMIN, ROLE_GUARD, get_current_role, require_role
+from modules.db import submit_guard_package
+from modules.guard_packages import build_guard_packages, get_guard_package
+from modules.locks import begin_action_lock, end_action_lock
 from modules.pdf_generator import build_parking_pdf
-from modules.sheets import get_request_by_id, list_vehicles, read_sheet
+from modules.sheets import read_sheet
 from modules.storage import upload_file
-from modules.ui import inject_global_css, render_key_value_table, render_page_title
+from modules.ui import inject_global_css, render_key_value_table, render_page_title, request_detail_url, status_badge, with_role_url
 from modules.validators import validate_guard_submission
 
 
 st.set_page_config(page_title="ส่งงาน รปภ.", page_icon="icon.svg", layout="wide")
 inject_global_css()
-render_page_title("ส่งงาน รปภ.", "เลือกงาน ตรวจรายละเอียด แล้วส่งรูปยืนยัน")
+require_role([ROLE_GUARD, ROLE_ADMIN], "guard_submit")
 
-tasks = read_sheet("Guard_Tasks")
-open_tasks = tasks[tasks["status"].isin(["pending", "in_progress", "submitted"])] if not tasks.empty else tasks
-if open_tasks.empty:
-    st.info("ยังไม่มีงานที่เปิดให้ส่ง")
+query_request_id = st.query_params.get("request_id", "")
+query_task_id = st.query_params.get("task_id", "")
+if isinstance(query_request_id, list):
+    query_request_id = query_request_id[0] if query_request_id else ""
+if isinstance(query_task_id, list):
+    query_task_id = query_task_id[0] if query_task_id else ""
+
+request_id = str(query_request_id or st.session_state.get("selected_guard_request_id", "")).strip()
+if not request_id and query_task_id:
+    package_from_task = get_guard_package(task_id=str(query_task_id).strip())
+    request_id = str((package_from_task or {}).get("request_id", ""))
+
+with st.spinner("กำลังโหลดข้อมูล..."):
+    packages = build_guard_packages(include_cancelled=False)
+    vehicles = read_sheet("Vehicles")
+
+if not request_id:
+    render_page_title("ส่งงาน รปภ.", "เลือกงานจากเลขหนังสือ แล้วอัปโหลดรูปใกล้และรูปไกล")
+    open_packages = packages[packages["status"].isin(["pending", "in_progress"])] if not packages.empty else packages
+    if open_packages.empty:
+        st.info("ยังไม่มีงานที่เปิดให้ส่ง")
+        st.stop()
+    for _, row in open_packages.sort_values(["parking_date", "book_no"]).iterrows():
+        with st.container(border=True):
+            st.markdown(f"### เลขหนังสือ {row['book_no']}")
+            st.markdown(status_badge(row["status"], "guard"), unsafe_allow_html=True)
+            st.write(f"**สำนัก/หน่วยงาน:** {row['source_agency']}")
+            st.write(f"**วันที่จอด:** {row['date_summary']}")
+            st.write(f"**จุดจอด:** {row['parking_location']} | **จำนวนรถ:** {row['car_count']}")
+            if st.button("ส่งงานนี้", key=f"choose_submit_{row['request_id']}", use_container_width=True):
+                st.session_state["selected_guard_request_id"] = str(row["request_id"])
+                st.rerun()
     st.stop()
 
-requests = read_sheet("Requests")
-if not requests.empty:
-    open_tasks = open_tasks.merge(
-        requests[["request_id", "book_no", "source_agency", "car_count"]],
-        on="request_id",
-        how="left",
-    )
-
-open_tasks = open_tasks.sort_values(["parking_date", "created_at"], ascending=[True, False]).reset_index(drop=True)
-
-
-def task_option_label(task_id: str) -> str:
-    row = open_tasks[open_tasks["task_id"].astype(str) == str(task_id)].iloc[0]
-    agency = row.get("source_agency", "") or "ไม่ระบุสำนัก"
-    book_no = row.get("book_no", "") or row.get("request_id", "")
-    return f"{row['parking_date']} | {agency} | {book_no} | {row['parking_location']}"
-
-
-task_id = st.selectbox(
-    "เลือกงาน",
-    open_tasks["task_id"].tolist(),
-    format_func=task_option_label,
-)
-task = open_tasks[open_tasks["task_id"] == task_id].iloc[0].to_dict()
-request = get_request_by_id(task["request_id"])
-if not request:
-    st.error("ไม่พบคำขอของงานนี้")
+package = get_guard_package(request_id=request_id)
+if not package:
+    render_page_title("ส่งงาน รปภ.", "ไม่พบงาน")
+    st.error("ไม่พบงาน รปภ. ของคำขอนี้")
     st.stop()
 
+plates = []
+if not vehicles.empty:
+    plates = vehicles[
+        (vehicles["request_id"].astype(str) == str(request_id))
+        & (vehicles["status"].astype(str) != "cancelled")
+    ]["plate_no"].astype(str).tolist()
+
+render_page_title(f"ส่งงาน: เลขหนังสือ {package['book_no']}", str(package["source_agency"]))
+st.markdown(status_badge(package["status"], "guard"), unsafe_allow_html=True)
 render_key_value_table(
     [
-        ("สำนัก/หน่วยงาน", request["source_agency"]),
-        ("เลขหนังสือ", request["book_no"]),
-        ("วันที่ปฏิบัติงาน", task["parking_date"]),
-        ("จุดจอด", request["parking_location"]),
-        ("จำนวนรถ", request["car_count"]),
+        ("สำนัก/หน่วยงาน", package["source_agency"]),
+        ("วันที่จอด", package["date_summary"]),
+        ("เวลา", package.get("parking_time") or "-"),
+        ("จุดจอด", package["parking_location"]),
+        ("จำนวนรถ", str(package["car_count"])),
+        ("ทะเบียนรถ", ", ".join(plates) if plates else "ไม่มีทะเบียน"),
     ]
 )
 
-plates = list_vehicles(request["request_id"])["plate_no"].tolist()
+car_count_value = pd.to_numeric(package["car_count"], errors="coerce")
 pdf_bytes = build_parking_pdf(
-    agency=request["source_agency"],
-    car_count=int(request["car_count"]),
+    agency=package["source_agency"],
+    car_count=int(car_count_value) if pd.notna(car_count_value) else 1,
     plates=plates,
-    parking_location=request["parking_location"],
-    parking_date=task["parking_date"],
-    book_no=request["book_no"],
+    parking_location=package["parking_location"],
+    date_summary=package["date_summary"],
+    parking_time=package.get("parking_time", ""),
+    book_no=package["book_no"],
 )
-st.download_button("ดาวน์โหลด PDF ป้าย", pdf_bytes, f"parking_sign_{task_id}.pdf", "application/pdf")
+st.download_button(
+    "ดาวน์โหลด PDF ป้าย",
+    pdf_bytes,
+    f"parking_sign_{package['book_no']}.pdf",
+    "application/pdf",
+    use_container_width=True,
+)
 
-st.info("อัปโหลด 2 รูป: รูปใกล้ให้เห็นกรวย/กระดาษชัด และรูปไกลให้เห็นบริเวณจอดโดยรวม")
+if package["status"] == "done":
+    st.info("งานนี้ปิดแล้ว")
+    st.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+    st.stop()
+if package["status"] == "cancelled":
+    st.warning("งานนี้ถูกยกเลิก")
+    st.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+    st.stop()
+if package["status"] == "submitted":
+    st.info("งานนี้ส่งแล้ว รอเจ้าหน้าที่ตรวจ")
+    st.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+    st.stop()
 
-near_photo = st.file_uploader("รูปใกล้ *", type=["png", "jpg", "jpeg"], key=f"{task_id}_near")
-far_photo = st.file_uploader("รูปไกล *", type=["png", "jpg", "jpeg"], key=f"{task_id}_far")
-extra_photo = st.file_uploader("รูปเสริม", type=["png", "jpg", "jpeg"], key=f"{task_id}_extra")
-note = st.text_area("รายละเอียดเพิ่มเติม")
+st.info("อัปโหลดรูปใกล้และรูปไกลก่อนส่งงาน")
+near_photo = st.file_uploader("รูปใกล้ *", type=["png", "jpg", "jpeg"], key=f"{request_id}_near", help="เห็นกรวย/กระดาษชัด")
+far_photo = st.file_uploader("รูปไกล *", type=["png", "jpg", "jpeg"], key=f"{request_id}_far", help="เห็นตำแหน่งจอดโดยรวม")
+extra_photo = st.file_uploader("รูปเสริม", type=["png", "jpg", "jpeg"], key=f"{request_id}_extra")
+note = st.text_area("หมายเหตุเพิ่มเติม")
 submitted_by = st.text_input("ผู้ส่งงาน", value="รปภ.")
-submitted = st.button("ส่งงาน", type="primary")
+confirmed = st.checkbox("ยืนยันว่ารูปถูกต้องและต้องการส่งงาน")
 
+submitted = st.button("ส่งงาน", type="primary", use_container_width=True)
 if submitted:
-    ok, message = validate_guard_submission(near_photo, far_photo)
-    if not ok:
-        st.error(message)
+    if not confirmed:
+        st.error("กรุณายืนยันก่อนส่งงาน")
     else:
-        near_meta = upload_file(near_photo, "guard_submissions", f"{task_id}_near")
-        far_meta = upload_file(far_photo, "guard_submissions", f"{task_id}_far")
-        extra_meta = upload_file(extra_photo, "guard_submissions", f"{task_id}_extra") if extra_photo else None
-        submission_id = submit_guard_task(
-            task_id=task_id,
-            near_photo_meta=near_meta,
-            far_photo_meta=far_meta,
-            extra_photo_meta=extra_meta,
-            note=note,
-            submitted_by=submitted_by,
-        )
-        st.success(f"ส่งงานสำเร็จ: {submission_id}")
+        ok, message = validate_guard_submission(near_photo, far_photo)
+        if not ok:
+            st.error(message)
+        elif not begin_action_lock(f"submit_{request_id}"):
+            st.warning("ระบบกำลังส่งงาน กรุณารอสักครู่")
+            st.stop()
+        else:
+            try:
+                with st.spinner("กำลังส่งงาน... กรุณารอสักครู่"):
+                    near_meta = upload_file(near_photo, "guard_submissions", f"{request_id}_near")
+                    far_meta = upload_file(far_photo, "guard_submissions", f"{request_id}_far")
+                    extra_meta = upload_file(extra_photo, "guard_submissions", f"{request_id}_extra") if extra_photo else None
+                    submit_guard_package(
+                        request_id=request_id,
+                        near_photo_meta=near_meta,
+                        far_photo_meta=far_meta,
+                        extra_photo_meta=extra_meta,
+                        note=note,
+                        submitted_by=submitted_by,
+                    )
+                st.success("ส่งงานแล้ว รอเจ้าหน้าที่ตรวจ")
+                if get_current_role() == ROLE_ADMIN:
+                    col1, col2 = st.columns(2)
+                    col1.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+                    col2.link_button("เปิดรายละเอียดหนังสือ", request_detail_url(request_id), use_container_width=True)
+                else:
+                    st.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+            except Exception as exc:
+                st.error(str(exc))
+            finally:
+                end_action_lock(f"submit_{request_id}")

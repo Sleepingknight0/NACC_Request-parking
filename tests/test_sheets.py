@@ -89,3 +89,28 @@ def test_sheet_status_and_boolean_values_are_thai_on_write_and_internal_on_read(
 
     assert normalized.loc[0, "status"] == "pending"
     assert normalized.loc[0, "has_vehicle_plates"] == "FALSE"
+
+
+def test_normalize_columns_cleans_sheet_datetime_dates_and_month_keys():
+    import pandas as pd
+
+    sheet_df = pd.DataFrame(
+        [
+            {
+                "รหัสวันที่จอด": "DATE-1",
+                "รหัสคำขอ": "REQ-1",
+                "วันที่จอด": "2026-06-14 00:00:00",
+                "เวลาที่จอด": "08:30-16:30",
+                "เดือนรายงาน": "2026-06-01 00:00:00",
+                "สถานะวันที่จอด": "รอดำเนินการ",
+                "วันที่สร้างข้อมูล": "",
+                "วันที่ยกเลิก": "",
+                "เหตุผลยกเลิก": "",
+            }
+        ]
+    )
+
+    normalized = _normalize_columns("Request_Dates", sheet_df)
+
+    assert normalized.loc[0, "parking_date"] == "2026-06-14"
+    assert normalized.loc[0, "month_key"] == "2026-06"

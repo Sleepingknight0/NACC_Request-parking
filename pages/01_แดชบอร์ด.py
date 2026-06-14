@@ -1,76 +1,78 @@
+from __future__ import annotations
+
 import pandas as pd
 import streamlit as st
 
+from modules.auth import ROLE_ADMIN, ROLE_VIEWER, require_role
+from modules.guard_packages import build_guard_packages
 from modules.sheets import read_sheet
-from modules.ui import inject_global_css, render_dataframe, render_page_title, render_record_cards
+from modules.ui import inject_global_css, render_dataframe, render_page_title, status_badge
 
 
 st.set_page_config(page_title="แดชบอร์ด", page_icon="icon.svg", layout="wide")
 inject_global_css()
-render_page_title("แดชบอร์ด", "ดูเฉพาะตัวเลขและงานที่ต้องตัดสินใจก่อน")
+require_role([ROLE_ADMIN, ROLE_VIEWER], "dashboard")
+render_page_title("แดชบอร์ด", "วันนี้มีงานอะไร งานไหนค้าง และงานไหนส่งแล้วรอตรวจ")
 
-requests = read_sheet("Requests")
-dates = read_sheet("Request_Dates")
-tasks = read_sheet("Guard_Tasks")
+with st.spinner("กำลังโหลดข้อมูล..."):
+    requests = read_sheet("Requests")
+    dates = read_sheet("Request_Dates")
+    packages = build_guard_packages()
 
-month_options = sorted(dates["month_key"].dropna().unique().tolist()) if not dates.empty else []
 default_month = pd.Timestamp.today().strftime("%Y-%m")
+month_options = sorted([value for value in dates["month_key"].dropna().unique().tolist() if str(value).strip()]) if not dates.empty else []
 selected_month = st.selectbox("เดือน", month_options or [default_month], index=0)
 
 month_dates = dates[dates["month_key"].astype(str) == selected_month] if not dates.empty else dates
-month_tasks = tasks[tasks["parking_date"].astype(str).str.startswith(selected_month)] if not tasks.empty else tasks
-active_request_ids = set(month_dates["request_id"].astype(str)) if not month_dates.empty else set()
-month_requests = requests[requests["request_id"].astype(str).isin(active_request_ids)] if active_request_ids else requests.iloc[0:0]
+month_request_ids = set(month_dates["request_id"].astype(str)) if not month_dates.empty else set()
+month_requests = requests[requests["request_id"].astype(str).isin(month_request_ids)] if month_request_ids else requests.iloc[0:0]
+month_packages = packages[packages["request_id"].astype(str).isin(month_request_ids)] if month_request_ids and not packages.empty else packages.iloc[0:0]
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("หนังสือทั้งหมด", len(month_requests))
-col2.metric("วันที่ขอจอด", len(month_dates))
-col3.metric("จำนวนรถรวม", int(pd.to_numeric(month_requests.get("car_count"), errors="coerce").fillna(0).sum()) if not month_requests.empty else 0)
-col4.metric("งานค้าง", len(month_tasks[month_tasks["status"].isin(["pending", "in_progress"])]) if not month_tasks.empty else 0)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1.metric("หนังสือเดือนนี้", len(month_requests))
+col2.metric("งาน รปภ.", len(month_packages))
+col3.metric("งานค้าง", len(month_packages[month_packages["status"].isin(["pending", "in_progress"])]) if not month_packages.empty else 0)
+col4.metric("ส่งแล้วรอตรวจ", len(month_packages[month_packages["status"] == "submitted"]) if not month_packages.empty else 0)
+col5.metric("เสร็จสิ้น", len(month_packages[month_packages["status"] == "done"]) if not month_packages.empty else 0)
+col6.metric("ยกเลิก", len(month_packages[month_packages["status"] == "cancelled"]) if not month_packages.empty else 0)
 
-col5, col6, col7 = st.columns(3)
-col5.metric("งานส่งแล้ว", len(month_tasks[month_tasks["status"] == "submitted"]) if not month_tasks.empty else 0)
-col6.metric("งานเสร็จ", len(month_tasks[month_tasks["status"] == "done"]) if not month_tasks.empty else 0)
-col7.metric("งานยกเลิก", len(month_tasks[month_tasks["status"] == "cancelled"]) if not month_tasks.empty else 0)
 
-if not month_tasks.empty and not requests.empty:
-    task_view = month_tasks.merge(
-        requests[["request_id", "book_no", "source_agency", "car_count"]],
-        on="request_id",
-        how="left",
-    )
-else:
-    task_view = month_tasks
+def _render_cards(df, empty_text: str) -> None:
+    if df.empty:
+        st.caption(empty_text)
+        return
+    for _, row in df.head(8).iterrows():
+        with st.container(border=True):
+            st.markdown(f"### เลขหนังสือ {row['book_no']}")
+            st.markdown(status_badge(row["status"], "guard"), unsafe_allow_html=True)
+            st.write(f"**สำนัก/หน่วยงาน:** {row['source_agency']}")
+            st.write(f"**วันที่จอด:** {row['date_summary']}")
+            st.write(f"**จุดจอด:** {row['parking_location']} | **จำนวนรถ:** {row['car_count']}")
+            if st.button("เปิดรายละเอียด", key=f"dash_detail_{row['request_id']}", use_container_width=True):
+                st.session_state["selected_request_id"] = str(row["request_id"])
+                st.switch_page("pages/04_รายละเอียดหนังสือ.py")
 
-st.subheader("งานวันนี้")
+
 today = pd.Timestamp.today().date().isoformat()
-today_tasks = task_view[task_view["parking_date"].astype(str) == today] if not task_view.empty else task_view
-render_record_cards(
-    today_tasks,
-    title_field="source_agency",
-    fields=["parking_date", "parking_location", "car_count", "status"],
-    worksheet="Guard_Tasks",
-    status_kind="guard",
-    empty_text="วันนี้ไม่มีงาน รปภ.",
-    max_cards=6,
-)
+st.subheader("งานวันนี้")
+today_packages = month_packages[
+    month_packages["start_date"].astype(str).le(today)
+    & month_packages["end_date"].astype(str).ge(today)
+] if not month_packages.empty else month_packages
+_render_cards(today_packages, "วันนี้ไม่มีงาน")
 
 st.subheader("งานค้าง")
-pending = task_view[task_view["status"].isin(["pending", "in_progress"])] if not task_view.empty else task_view
-render_dataframe(
-    pending,
-    ["parking_date", "source_agency", "parking_location", "car_count", "status"],
-    worksheet="Guard_Tasks",
-    status_kind="guard",
-    empty_text="ไม่มีงานค้าง",
-)
+pending = month_packages[month_packages["status"].isin(["pending", "in_progress"])] if not month_packages.empty else month_packages
+_render_cards(pending, "ไม่มีงานค้าง")
 
-st.subheader("งานส่งแล้วรอตรวจ")
-submitted = task_view[task_view["status"] == "submitted"] if not task_view.empty else task_view
-render_dataframe(
-    submitted,
-    ["parking_date", "source_agency", "parking_location", "car_count", "status"],
-    worksheet="Guard_Tasks",
-    status_kind="guard",
-    empty_text="ไม่มีงานส่งแล้วรอตรวจ",
-)
+st.subheader("ส่งแล้วรอตรวจ")
+submitted = month_packages[month_packages["status"] == "submitted"] if not month_packages.empty else month_packages
+_render_cards(submitted, "ไม่มีงานส่งแล้วรอตรวจ")
+
+with st.expander("ดูตาราง"):
+    render_dataframe(
+        month_packages,
+        ["book_no", "source_agency", "date_summary", "parking_location", "car_count", "status", "submitted_at", "completed_at"],
+        status_kind="guard",
+        empty_text="ไม่มีข้อมูล",
+    )

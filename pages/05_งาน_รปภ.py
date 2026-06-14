@@ -1,66 +1,105 @@
+from __future__ import annotations
+
 import pandas as pd
 import streamlit as st
 
+from modules.auth import ROLE_ADMIN, ROLE_GUARD, get_current_role, require_role
+from modules.guard_packages import build_guard_packages
 from modules.pdf_generator import build_parking_pdf
-from modules.sheets import get_request_by_id, list_vehicles, read_sheet
-from modules.ui import inject_global_css, render_dataframe, render_page_title, render_record_cards
+from modules.sheets import read_sheet
+from modules.ui import inject_global_css, render_dataframe, render_page_title, status_badge
 
 
 st.set_page_config(page_title="งาน รปภ.", page_icon="icon.svg", layout="wide")
 inject_global_css()
-render_page_title("งาน รปภ.", "ดูงานที่ต้องทำก่อน ดาวน์โหลดป้ายได้จากงานที่เลือก")
+require_role([ROLE_GUARD, ROLE_ADMIN], "guard_tasks")
+render_page_title("งาน รปภ.", "หนึ่งเลขหนังสือคือหนึ่งงาน ดาวน์โหลดป้ายและส่งงานจากการ์ดเดียว")
 
-tasks = read_sheet("Guard_Tasks")
-requests = read_sheet("Requests")
-if tasks.empty:
+with st.spinner("กำลังโหลดข้อมูล..."):
+    packages = build_guard_packages(include_cancelled=False)
+    vehicles = read_sheet("Vehicles")
+
+if packages.empty:
     st.info("ยังไม่มีงาน รปภ.")
     st.stop()
 
-joined = tasks.merge(requests, on="request_id", how="left", suffixes=("", "_request"))
-today = pd.Timestamp.today().date()
-tomorrow = today + pd.Timedelta(days=1)
+today = pd.Timestamp.today().date().isoformat()
+tabs = st.tabs(["วันนี้", "งานค้าง", "ส่งแล้วรอตรวจ", "ทั้งหมด"])
+sections = [
+    packages[
+        packages["start_date"].astype(str).le(today)
+        & packages["end_date"].astype(str).ge(today)
+        & packages["status"].isin(["pending", "in_progress"])
+    ],
+    packages[packages["status"].isin(["pending", "in_progress"])],
+    packages[packages["status"] == "submitted"],
+    packages,
+]
 
-sections = {
-    "งานวันนี้": joined[joined["parking_date"].astype(str) == today.isoformat()],
-    "งานพรุ่งนี้": joined[joined["parking_date"].astype(str) == tomorrow.isoformat()],
-    "งานค้าง": joined[joined["status"].isin(["pending", "in_progress"])],
-    "งานส่งแล้วรอตรวจ": joined[joined["status"] == "submitted"],
-}
 
-for title, df in sections.items():
-    st.subheader(title)
+def _plates_for(request_id: str) -> list[str]:
+    if vehicles.empty:
+        return []
+    rows = vehicles[
+        (vehicles["request_id"].astype(str) == str(request_id))
+        & (vehicles["status"].astype(str) != "cancelled")
+    ]
+    return rows["plate_no"].astype(str).tolist()
+
+
+def _render_cards(df) -> None:
     if df.empty:
         st.caption("ไม่มีรายการ")
-        continue
-    render_record_cards(
-        df.sort_values("parking_date"),
-        title_field="source_agency",
-        fields=["parking_date", "parking_location", "car_count", "status"],
-        worksheet="Guard_Tasks",
-        status_kind="guard",
-        max_cards=6,
-    )
+        return
+    for _, row in df.sort_values(["parking_date", "book_no"]).iterrows():
+        plates = _plates_for(row["request_id"])
+        with st.container(border=True):
+            st.markdown(f"### เลขหนังสือ {row['book_no']}")
+            st.markdown(status_badge(row["status"], "guard"), unsafe_allow_html=True)
+            col_a, col_b = st.columns(2)
+            col_a.write(f"**สำนัก/หน่วยงาน:** {row['source_agency']}")
+            col_a.write(f"**วันที่จอด:** {row['date_summary']}")
+            col_a.write(f"**เวลาที่จอด:** {row['parking_time'] or '-'}")
+            col_b.write(f"**จุดจอด:** {row['parking_location']}")
+            col_b.write(f"**จำนวนรถ:** {row['car_count']}")
+            col_b.write(f"**ทะเบียน:** {', '.join(plates) if plates else 'ไม่มีทะเบียน'}")
 
-with st.expander("ดูตารางงานทั้งหมด"):
-    render_dataframe(
-        joined,
-        ["parking_date", "source_agency", "parking_location", "car_count", "status"],
-        worksheet="Guard_Tasks",
-        status_kind="guard",
-    )
+            car_count_value = pd.to_numeric(row["car_count"], errors="coerce")
+            pdf_bytes = build_parking_pdf(
+                agency=row["source_agency"],
+                car_count=int(car_count_value) if pd.notna(car_count_value) else 1,
+                plates=plates,
+                parking_location=row["parking_location"],
+                date_summary=row["date_summary"],
+                parking_time=row["parking_time"],
+                book_no=row["book_no"],
+            )
+            action_cols = st.columns(3 if get_current_role() == ROLE_ADMIN else 2)
+            action_cols[0].download_button(
+                "ดาวน์โหลด PDF",
+                pdf_bytes,
+                f"parking_sign_{row['book_no']}.pdf",
+                "application/pdf",
+                use_container_width=True,
+                key=f"guard_pdf_{row['request_id']}_{row['status']}",
+            )
+            if action_cols[1].button("ส่งงาน", key=f"guard_submit_{row['request_id']}", use_container_width=True):
+                st.session_state["selected_guard_request_id"] = str(row["request_id"])
+                st.switch_page("pages/06_ส่งงาน_รปภ.py")
+            if get_current_role() == ROLE_ADMIN:
+                if action_cols[2].button("เปิดรายละเอียด", key=f"guard_detail_{row['request_id']}", use_container_width=True):
+                    st.session_state["selected_request_id"] = str(row["request_id"])
+                    st.switch_page("pages/04_รายละเอียดหนังสือ.py")
 
-st.subheader("ดาวน์โหลด PDF งานที่เลือก")
-task_id = st.selectbox("เลือกงาน", tasks["task_id"].tolist())
-task = tasks[tasks["task_id"] == task_id].iloc[0]
-request = get_request_by_id(task["request_id"])
-if request:
-    plates = list_vehicles(request["request_id"])["plate_no"].tolist()
-    pdf_bytes = build_parking_pdf(
-        agency=request["source_agency"],
-        car_count=int(request["car_count"]),
-        plates=plates,
-        parking_location=request["parking_location"],
-        parking_date=task["parking_date"],
-        book_no=request["book_no"],
-    )
-    st.download_button("ดาวน์โหลด PDF", pdf_bytes, f"parking_sign_{task_id}.pdf", "application/pdf")
+
+for tab, df in zip(tabs, sections):
+    with tab:
+        _render_cards(df)
+
+if get_current_role() == ROLE_ADMIN:
+    with st.expander("ดูตารางงานทั้งหมด"):
+        render_dataframe(
+            packages,
+            ["book_no", "source_agency", "date_summary", "parking_location", "car_count", "status", "task_count"],
+            status_kind="guard",
+        )
