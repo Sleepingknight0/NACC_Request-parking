@@ -798,12 +798,10 @@ def render_record_cards(
             value = _display_value(field, row.get(field, ""), status_kind)
             meta_lines.append(f"{html.escape(label)}: {html.escape(value)}")
         cards.append(
-            f"""
-            <article class="nacc-record-card">
-                <div class="nacc-record-card-title">{html.escape(title)}</div>
-                <div class="nacc-record-card-meta">{"<br>".join(meta_lines)}</div>
-            </article>
-            """
+            "<article class=\"nacc-record-card\">"
+            f"<div class=\"nacc-record-card-title\">{html.escape(title)}</div>"
+            f"<div class=\"nacc-record-card-meta\">{'<br>'.join(meta_lines)}</div>"
+            "</article>"
         )
 
     note = ""
@@ -817,12 +815,11 @@ def render_action_grid(actions: list[tuple[str, str, str]]) -> None:
     cards = []
     for label, href, description in actions:
         cards.append(
-            f"""
-            <a class="nacc-action-card" href="{html.escape(href)}" target="_self">
-                <strong>{html.escape(label)}</strong>
-                <span>{html.escape(description)}</span>
-            </a>
-            """
+            "<a class=\"nacc-action-card\" "
+            f"href=\"{html.escape(href)}\" target=\"_self\">"
+            f"<strong>{html.escape(label)}</strong>"
+            f"<span>{html.escape(description)}</span>"
+            "</a>"
         )
     st.markdown(f'<div class="nacc-action-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
 
