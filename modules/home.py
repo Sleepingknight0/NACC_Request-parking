@@ -18,6 +18,12 @@ def _metric_cards(values: list[tuple[str, int]]) -> None:
         cols[index % len(cols)].metric(label, value)
 
 
+def _show_flash() -> None:
+    message = st.session_state.pop("flash_success", "")
+    if message:
+        st.success(message)
+
+
 def _split_packages(packages) -> dict[str, object]:
     if packages.empty:
         return {
@@ -122,7 +128,7 @@ def _render_guard_card(row, vehicles, *, prefix: str, admin: bool = False) -> No
                         try:
                             with st.spinner("กำลังรับงาน..."):
                                 accept_guard_package(request_id)
-                            st.success("รับงานแล้ว")
+                            st.session_state["flash_success"] = "รับงานแล้ว"
                             st.rerun()
                         except Exception as exc:
                             st.error(str(exc))
@@ -181,7 +187,7 @@ def _render_admin_submitted(packages, vehicles, submissions) -> None:
                     try:
                         with st.spinner("กำลังยืนยันงาน..."):
                             mark_guard_package_done(request_id, user="แอดมิน")
-                        st.success("ยืนยันงานเสร็จแล้ว")
+                        st.session_state["flash_success"] = "ยืนยันงานเสร็จแล้ว"
                         st.rerun()
                     except Exception as exc:
                         st.error(str(exc))
@@ -281,6 +287,7 @@ def render_home() -> None:
         return
 
     render_role_badge()
+    _show_flash()
     with st.spinner("กำลังโหลดข้อมูล..."):
         requests = read_sheet("Requests")
         packages = build_guard_packages()

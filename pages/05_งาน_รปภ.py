@@ -15,6 +15,9 @@ from modules.ui import inject_global_css, render_dataframe, render_page_title, s
 st.set_page_config(page_title="งาน รปภ.", page_icon="icon.svg", layout="wide")
 inject_global_css()
 require_role([ROLE_GUARD, ROLE_ADMIN], "guard_tasks")
+flash_success = st.session_state.pop("flash_success", "")
+if flash_success:
+    st.success(flash_success)
 render_page_title("งาน รปภ.", "รับงาน ดาวน์โหลดป้าย และส่งรูปงาน")
 
 with st.spinner("กำลังโหลดข้อมูล..."):
@@ -110,7 +113,7 @@ def _render_cards(df, prefix: str) -> None:
                             try:
                                 with st.spinner("กำลังรับงาน..."):
                                     accept_guard_package(request_id)
-                                st.success("รับงานแล้ว")
+                                st.session_state["flash_success"] = "รับงานแล้ว"
                                 st.rerun()
                             except Exception as exc:
                                 st.error(str(exc))

@@ -31,6 +31,9 @@ from modules.ui import (
 st.set_page_config(page_title="รายละเอียดหนังสือ", page_icon="icon.svg", layout="wide")
 inject_global_css()
 require_role([ROLE_OFFICER, ROLE_ADMIN], "request_detail")
+flash_success = st.session_state.pop("flash_success", "")
+if flash_success:
+    st.success(flash_success)
 
 requests = read_sheet("Requests")
 if requests.empty:
@@ -194,7 +197,7 @@ if get_current_role() == ROLE_ADMIN:
         try:
             with st.spinner("กำลังปิดงาน..."):
                 mark_guard_package_done(request_id, user="แอดมิน")
-            st.success("ปิดงานแล้ว")
+            st.session_state["flash_success"] = "ปิดงานแล้ว"
             st.rerun()
         except Exception as exc:
             st.error(str(exc))
@@ -226,7 +229,7 @@ if get_current_role() == ROLE_ADMIN:
                             reason=override_reason,
                             user="แอดมิน",
                         )
-                    st.success("บันทึกสถานะแล้ว")
+                    st.session_state["flash_success"] = "บันทึกสถานะแล้ว"
                     st.rerun()
                 except Exception as exc:
                     st.error(str(exc))
@@ -246,7 +249,7 @@ if get_current_role() == ROLE_ADMIN:
                 try:
                     with st.spinner("กำลังยกเลิกข้อมูล..."):
                         cancel_request(request_id, reason, user=user)
-                    st.success("ยกเลิกคำขอแล้ว")
+                    st.session_state["flash_success"] = "ยกเลิกคำขอแล้ว"
                     st.rerun()
                 except Exception as exc:
                     st.error(str(exc))
@@ -268,7 +271,7 @@ if get_current_role() == ROLE_ADMIN:
                         try:
                             with st.spinner("กำลังยกเลิกข้อมูล..."):
                                 cancel_request_date(date_id, reason, user=user)
-                            st.success("ยกเลิกวันที่แล้ว")
+                            st.session_state["flash_success"] = "ยกเลิกวันที่แล้ว"
                             st.rerun()
                         finally:
                             end_action_lock(f"cancel_date_{date_id}")
@@ -288,7 +291,7 @@ if get_current_role() == ROLE_ADMIN:
                         try:
                             with st.spinner("กำลังยกเลิกข้อมูล..."):
                                 cancel_vehicle(vehicle_id, reason, user=user)
-                            st.success("ยกเลิกทะเบียนแล้ว")
+                            st.session_state["flash_success"] = "ยกเลิกทะเบียนแล้ว"
                             st.rerun()
                         finally:
                             end_action_lock(f"cancel_vehicle_{vehicle_id}")

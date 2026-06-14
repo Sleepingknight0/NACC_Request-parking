@@ -98,14 +98,14 @@ def render_role_selector() -> None:
             )
             if st.button(ROLE_LABELS[role], key=f"select_role_{role}", use_container_width=True):
                 set_current_role(role)
-                st.rerun()
+                st.switch_page("app.py")
 
     with st.expander("สำหรับผู้ดูแลระบบ"):
         pin = st.text_input("รหัสผู้ดูแล", type="password", key="admin_pin_input")
         if st.button("เข้าสู่ระบบผู้ดูแล", key="select_role_admin", use_container_width=True):
             if pin == _admin_pin():
                 set_current_role(ROLE_ADMIN)
-                st.rerun()
+                st.switch_page("app.py")
             st.error("รหัสไม่ถูกต้อง")
 
 
@@ -116,7 +116,7 @@ def render_role_badge() -> None:
             st.caption(f"บทบาท: {ROLE_LABELS.get(role, role)}")
             if st.button("เปลี่ยนผู้ใช้งาน", use_container_width=True):
                 clear_role()
-                st.rerun()
+                st.switch_page("app.py")
 
 
 def require_role(allowed_roles: list[str], page_key: str | None = None) -> None:
@@ -134,5 +134,5 @@ def require_role(allowed_roles: list[str], page_key: str | None = None) -> None:
         st.warning("หน้านี้ไม่เปิดให้บทบาทของคุณใช้งาน")
         if st.button("เปลี่ยนผู้ใช้งาน", key=f"blocked_change_role_{page_key or 'page'}"):
             clear_role()
-            st.rerun()
+            st.switch_page("app.py")
         st.stop()

@@ -101,6 +101,19 @@ with st.expander("ตรวจสอบก่อนบันทึก", expanded
         ]
     )
 
+last_created = st.session_state.get("last_created_request")
+if last_created:
+    st.success(f"บันทึกเลขหนังสือ {last_created['book_no']} แล้ว")
+    col_success1, col_success2, col_success3 = st.columns(3)
+    if col_success1.button("เปิดรายละเอียด", use_container_width=True):
+        st.session_state["selected_request_id"] = last_created["request_id"]
+        st.switch_page("pages/04_รายละเอียดหนังสือ.py")
+    if col_success2.button("บันทึกคำขอใหม่", use_container_width=True):
+        st.session_state.pop("last_created_request", None)
+        st.rerun()
+    if col_success3.button("ดูประวัติคำขอ", use_container_width=True):
+        st.switch_page("pages/03_รายการหนังสือ.py")
+
 submitted = st.button("บันทึกคำขอ", type="primary", use_container_width=True)
 
 if submitted:
@@ -145,15 +158,8 @@ if submitted:
                     book_file_meta=file_meta,
                     created_by=created_by,
                 )
-            st.success(f"บันทึกเลขหนังสือ {book_no} แล้ว")
-            col_success1, col_success2, col_success3 = st.columns(3)
-            if col_success1.button("เปิดรายละเอียด", use_container_width=True):
-                st.session_state["selected_request_id"] = request_id
-                st.switch_page("pages/04_รายละเอียดหนังสือ.py")
-            if col_success2.button("บันทึกคำขอใหม่", use_container_width=True):
-                st.rerun()
-            if col_success3.button("ดูประวัติคำขอ", use_container_width=True):
-                st.switch_page("pages/03_รายการหนังสือ.py")
+            st.session_state["last_created_request"] = {"request_id": request_id, "book_no": book_no}
+            st.rerun()
     except Exception as exc:
         st.error(str(exc))
     finally:
