@@ -17,6 +17,16 @@ def test_normalize_private_key_repairs_dot_after_pem_markers():
     )
 
 
+def test_normalize_private_key_handles_triple_quoted_secret_shape():
+    raw_key = """-----BEGIN PRIVATE KEY-----
+\\nABC123\\n
+-----END PRIVATE KEY-----"""
+
+    assert _normalize_private_key(raw_key) == (
+        "-----BEGIN PRIVATE KEY-----\nABC123\n-----END PRIVATE KEY-----"
+    )
+
+
 def test_spreadsheet_id_from_url_accepts_url_or_raw_id():
     assert _spreadsheet_id_from_url(
         "https://docs.google.com/spreadsheets/d/1abc_DEF-123/edit?usp=sharing"

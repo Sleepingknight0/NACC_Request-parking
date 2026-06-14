@@ -202,12 +202,22 @@ def _get_google_session() -> tuple[AuthorizedSession, str]:
 
     try:
         service_account_info = dict(st.secrets.get("google_service_account", {}))
+        if not service_account_info:
+            connection_info = dict(st.secrets.get("connections", {}).get("gsheets", {}))
+            if connection_info.get("type") == "service_account":
+                service_account_info = connection_info
     except Exception as exc:
         raise RuntimeError("missing [google_service_account] secrets") from exc
+
+    if not service_account_info:
+        raise RuntimeError(
+            "missing service account secrets in [google_service_account] or [connections.gsheets]"
+        )
 
     service_account_info["private_key"] = _normalize_private_key(
         service_account_info.get("private_key", "")
     )
+    service_account_info.pop("spreadsheet", None)
 
     credentials = Credentials.from_service_account_info(
         service_account_info,
