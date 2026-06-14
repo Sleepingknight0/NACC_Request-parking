@@ -72,7 +72,7 @@ with st.form("create_request_form", clear_on_submit=False):
     if has_plates:
         plate_text = st.text_area("ทะเบียนรถ 1 รายการต่อ 1 บรรทัด", placeholder="กข 1234\nขค 5678")
 
-    note = st.text_area("หมายเหตุ", placeholder="กรอกเฉพาะข้อมูลที่จำเป็นต่อการประสานงาน")
+    note = st.text_area("หมายเหตุคำขอ", placeholder="กรอกเฉพาะข้อมูลที่จำเป็นต่อการประสานงาน")
     with st.expander("ข้อมูลผู้บันทึก"):
         created_by = st.text_input("ผู้บันทึก", value="เจ้าหน้าที่")
     submitted = st.form_submit_button("บันทึกคำขอ", type="primary")
