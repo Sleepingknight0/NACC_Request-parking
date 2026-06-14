@@ -6,6 +6,7 @@ import pytest
 
 from modules.storage import (
     DriveStorageConfigError,
+    describe_drive_upload_error,
     get_drive_config,
     get_file_storage_backend,
     is_drive_url,
@@ -81,3 +82,24 @@ def test_drive_config_includes_production_folder_defaults(monkeypatch):
 
     assert config["folders"]["book_files"] == "1mhxxhIUUUse3_kUPJ8qA6xLIN0h1pOmx"
     assert config["folders"]["guard_submissions"] == "1Hi9EVC7sWk7ZnnhlUdp58s3mwjH1L7dQ"
+
+
+def test_describe_drive_upload_error_explains_service_account_quota():
+    exc = RuntimeError(
+        "Service Accounts do not have storage quota. reason: storageQuotaExceeded"
+    )
+
+    message = describe_drive_upload_error(exc)
+
+    assert "Service account" in message
+    assert "Shared Drive" in message
+    assert "OAuth" in message
+
+
+def test_describe_drive_upload_error_explains_permission_denied():
+    exc = RuntimeError("HttpError 403 insufficientFilePermissions")
+
+    message = describe_drive_upload_error(exc)
+
+    assert "สิทธิ์" in message
+    assert "service account" in message

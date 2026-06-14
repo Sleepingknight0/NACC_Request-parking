@@ -82,9 +82,9 @@ if st.button("ตรวจสิทธิ์อัปโหลด Google Drive",
         else:
             st.warning("อัปโหลดได้ แต่ยังลบไฟล์ทดสอบเข้าถังขยะไม่สำเร็จ")
     else:
-        st.error("อัปโหลดไฟล์ทดสอบไป Google Drive ไม่สำเร็จ")
+        st.error(f"อัปโหลดไฟล์ทดสอบไป Google Drive ไม่สำเร็จ: {write_check.get('error', '')}")
         with st.expander("รายละเอียดสำหรับผู้ดูแล"):
-            st.code(str(write_check.get("error", "")))
+            st.code(str(write_check.get("technical_error") or write_check.get("error") or ""))
 
 st.subheader("เครื่องมือซ่อมระบบ")
 confirm_repair = st.checkbox("ยืนยันการเขียนข้อมูลสำหรับเครื่องมือซ่อมระบบ")

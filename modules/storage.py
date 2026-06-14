@@ -43,6 +43,31 @@ class DriveStorageConfigError(RuntimeError):
     """Raised when Google Drive storage is selected but not configured."""
 
 
+def describe_drive_upload_error(exc: Exception) -> str:
+    text = str(exc or "")
+    lower_text = text.lower()
+
+    if "storagequotaexceeded" in lower_text or "service accounts do not have storage quota" in lower_text:
+        return (
+            "Service account ไม่มีพื้นที่เก็บไฟล์บน My Drive "
+            "ต้องย้ายโฟลเดอร์ปลายทางไป Google Shared Drive หรือใช้ OAuth/domain-wide delegation"
+        )
+
+    if "insufficientfilepermissions" in lower_text or "permission" in lower_text or "403" in lower_text:
+        return (
+            "สิทธิ์ Google Drive ไม่พอ กรุณาแชร์โฟลเดอร์ให้ service account "
+            "และให้สิทธิ์อัปโหลดไฟล์"
+        )
+
+    if "file not found" in lower_text or "404" in lower_text or "notfound" in lower_text:
+        return "ไม่พบโฟลเดอร์ Google Drive กรุณาตรวจ folder ID"
+
+    if "drive api" in lower_text and ("disabled" in lower_text or "not been used" in lower_text):
+        return "ยังไม่ได้เปิดใช้งาน Google Drive API สำหรับโปรเจกต์นี้"
+
+    return "กรุณาตรวจการตั้งค่า Google Drive และลองใหม่อีกครั้ง"
+
+
 def _empty_file_meta() -> dict:
     return {
         "file_name": "",
@@ -438,7 +463,7 @@ def upload_file(file, folder: str, prefix: str) -> dict:
     except DriveStorageConfigError:
         raise
     except Exception as exc:
-        raise RuntimeError(DRIVE_UPLOAD_FAILED_MESSAGE) from exc
+        raise RuntimeError(f"{DRIVE_UPLOAD_FAILED_MESSAGE}: {describe_drive_upload_error(exc)}") from exc
 
 
 def check_drive_connection() -> dict:
@@ -515,7 +540,12 @@ def check_drive_write_access(folder: str = "book_files") -> dict:
             "trashed": trashed,
         }
     except Exception as exc:
-        return {"ok": False, "folder": _folder_key(folder), "error": str(exc)}
+        return {
+            "ok": False,
+            "folder": _folder_key(folder),
+            "error": describe_drive_upload_error(exc),
+            "technical_error": str(exc),
+        }
 
 
 def get_drive_config_status() -> dict:
