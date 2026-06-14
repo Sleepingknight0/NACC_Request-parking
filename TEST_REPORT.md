@@ -3,8 +3,8 @@
 ## Environment
 - App URL: https://naccrequest-parking-ubxjmebrnxefxib6jt64su.streamlit.app/
 - Google Sheet: https://docs.google.com/spreadsheets/d/1yZ5JEGP7S8VU7OPQqtvcPkHj3FC_guWbLZhAxpV1psg/edit
-- Date/time: 2026-06-14 21:50 +07:00
-- Commit SHA tested in production: `b538b0f`
+- Date/time: 2026-06-14 22:05 +07:00
+- Commit SHA tested in production: `bac5a85`
 - Tester: Codex browser automation and Google Sheets/Drive connector
 
 ## QA book numbers used
@@ -12,6 +12,7 @@
 - `QA-PROD-DRIVE-FAIL-20260614-000002` - earlier missing-folder-config test; final status `cancelled`
 - `QA-PROD-DRIVE-PREVIEW-20260614-213904` - upload attempt before explicit `is not None` fix; final status `cancelled`
 - `QA-PROD-DRIVE-PREVIEW-20260614-214341` - Drive write failure after fix; no request row created
+- `QA-PROD-DRIVE-ERR-20260614-220405` - upload-form error-message test; no request row created
 
 ## Role tests
 | Test | Result | Notes |
@@ -31,6 +32,7 @@
 | Book upload stores Drive URL | Blocked | Upload reaches Drive backend, then fails before writing request row |
 | Guard near/far upload stores Drive URLs | Blocked | Cannot test until Drive write access is fixed |
 | No local `uploads/...` path written for Drive attempts | Pass | Drive write failure did not write a local path or partial request row |
+| Upload-form error message | Pass | Officer form now shows the exact Shared Drive/OAuth fix instead of only a generic upload error |
 
 ## Photo preview
 | Test | Result | Notes |
@@ -51,7 +53,7 @@
 ## Automated checks
 | Check | Result | Notes |
 |---|---|---|
-| Unit tests | Pass | `python -m pytest -q`: 63 passed |
+| Unit tests | Pass | `python -m pytest -q`: 65 passed |
 | Compile check | Pass | `python -X utf8 -m compileall app.py streamlit_app.py modules pages tests` |
 | Production Drive read check | Pass | Both folders readable by service account |
 | Production Drive write check | Fail / blocked | Exact error: `Service Accounts do not have storage quota` |
@@ -61,6 +63,7 @@
 - Added admin-only Drive write diagnostic and service-account email display.
 - Fixed upload call guards to use `is not None`; uploaded objects are no longer skipped by truthiness checks.
 - Added regression tests for the upload guard behavior.
+- Mapped Google Drive quota/permission errors to actionable Thai messages for officer/admin UI.
 
 ## Remaining issues
 - Production Drive upload/preview QA is blocked because the provided folders are normal My Drive folders. Service-account uploads require a Google Shared Drive, OAuth delegation, or another backend with writable storage quota.
@@ -69,5 +72,5 @@ Fix plan:
 1. Move `Data base หนังสือผู้ขอที่จอด` and `Data base รปภส่งงาน` into a Google Shared Drive, or create equivalent folders in a Shared Drive.
 2. Grant `nacc-parking-streamlit@nacc-parking-streamlit.iam.gserviceaccount.com` Contributor/Content manager access.
 3. Keep the same folder IDs if possible, or provide the new Shared Drive folder IDs.
-4. Rerun Settings `ตรวจสิทธิ์อัปโหลด Google Drive`.
+4. Rerun Settings `ตรวจสิทธิ์อัปโหลด Google Drive`; it must pass before upload QA can pass.
 5. Rerun officer book upload, guard near/far upload, admin in-app preview, request detail preview, and QA cleanup.
