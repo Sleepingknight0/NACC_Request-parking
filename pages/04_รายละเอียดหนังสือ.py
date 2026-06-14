@@ -104,21 +104,30 @@ render_dataframe(
 with st.expander("ยกเลิกข้อมูล"):
     reason = st.text_area("เหตุผลยกเลิก")
     user = st.text_input("ผู้ดำเนินการ", value="เจ้าหน้าที่")
-    if st.button("ยกเลิกคำขอทั้งหมด", type="primary", disabled=not reason.strip()):
-        cancel_request(request_id, reason, user=user)
-        st.success("ยกเลิกคำขอแล้ว")
-        st.rerun()
+    if st.button("ยกเลิกคำขอทั้งหมด", type="primary"):
+        if not reason.strip():
+            st.error("กรุณาระบุเหตุผลยกเลิก")
+        else:
+            cancel_request(request_id, reason, user=user)
+            st.success("ยกเลิกคำขอแล้ว")
+            st.rerun()
 
     if not dates.empty:
         date_id = st.selectbox("ยกเลิกเฉพาะวันที่", dates["request_date_id"].tolist())
-        if st.button("ยกเลิกวันที่นี้", disabled=not reason.strip()):
-            cancel_request_date(date_id, reason, user=user)
-            st.success("ยกเลิกวันที่แล้ว")
-            st.rerun()
+        if st.button("ยกเลิกวันที่นี้"):
+            if not reason.strip():
+                st.error("กรุณาระบุเหตุผลยกเลิก")
+            else:
+                cancel_request_date(date_id, reason, user=user)
+                st.success("ยกเลิกวันที่แล้ว")
+                st.rerun()
 
     if not vehicles.empty:
         vehicle_id = st.selectbox("ยกเลิกทะเบียน", vehicles["vehicle_id"].tolist())
-        if st.button("ยกเลิกทะเบียนนี้", disabled=not reason.strip()):
-            cancel_vehicle(vehicle_id, reason, user=user)
-            st.success("ยกเลิกทะเบียนแล้ว")
-            st.rerun()
+        if st.button("ยกเลิกทะเบียนนี้"):
+            if not reason.strip():
+                st.error("กรุณาระบุเหตุผลยกเลิก")
+            else:
+                cancel_vehicle(vehicle_id, reason, user=user)
+                st.success("ยกเลิกทะเบียนแล้ว")
+                st.rerun()
