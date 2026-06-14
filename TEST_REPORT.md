@@ -3,13 +3,15 @@
 ## Environment
 - App URL: https://naccrequest-parking-ubxjmebrnxefxib6jt64su.streamlit.app/
 - Google Sheet: https://docs.google.com/spreadsheets/d/1yZ5JEGP7S8VU7OPQqtvcPkHj3FC_guWbLZhAxpV1psg/edit
-- Date/time: 2026-06-14 21:24 +07:00
-- Commit SHA tested in production: `7bc7084`
-- Tester: Codex browser automation and Google Sheets connector
+- Date/time: 2026-06-14 21:50 +07:00
+- Commit SHA tested in production: `b538b0f`
+- Tester: Codex browser automation and Google Sheets/Drive connector
 
 ## QA book numbers used
-- `QA-PROD-DRIVE-FAIL-20260614-000001` - production upload attempt while Drive folder config was missing; final status `cancelled`
-- `QA-PROD-DRIVE-FAIL-20260614-000002` - repeated production upload attempt while Drive folder config was missing; final status `cancelled`
+- `QA-PROD-DRIVE-FAIL-20260614-000001` - earlier missing-folder-config test; final status `cancelled`
+- `QA-PROD-DRIVE-FAIL-20260614-000002` - earlier missing-folder-config test; final status `cancelled`
+- `QA-PROD-DRIVE-PREVIEW-20260614-213904` - upload attempt before explicit `is not None` fix; final status `cancelled`
+- `QA-PROD-DRIVE-PREVIEW-20260614-214341` - Drive write failure after fix; no request row created
 
 ## Role tests
 | Test | Result | Notes |
@@ -22,47 +24,50 @@
 | Test | Result | Notes |
 |---|---|---|
 | Deployment picked up Drive code | Pass | Settings shows `file_storage_backend = google_drive` |
-| Drive folder config visible | Pass | Settings shows root and per-folder configuration status |
-| Drive connection readiness | Blocked | Production has no `connections.gdrive.root_folder_id` or folder IDs configured |
-| Book upload stores Drive URL | Blocked | Cannot complete until Drive folder IDs are configured in Streamlit Secrets |
-| Guard near/far upload stores Drive URLs | Blocked | Cannot complete until Drive folder IDs are configured in Streamlit Secrets |
-| No local `uploads/...` path written for Drive attempts | Pass | QA rows had blank `book_file_url`, not local paths |
+| Provided Drive folders resolved | Pass | Both folder IDs resolve to Google Drive folders |
+| Folder config visible in app | Pass | `book_files` and `guard_submissions` show `ตั้งค่าแล้ว` |
+| Service account read access | Pass | Settings Drive connection check reads both folders |
+| Service account write access | Fail / blocked | Google Drive API returns `storageQuotaExceeded`: service accounts cannot upload into normal My Drive storage |
+| Book upload stores Drive URL | Blocked | Upload reaches Drive backend, then fails before writing request row |
+| Guard near/far upload stores Drive URLs | Blocked | Cannot test until Drive write access is fixed |
+| No local `uploads/...` path written for Drive attempts | Pass | Drive write failure did not write a local path or partial request row |
 
 ## Photo preview
 | Test | Result | Notes |
 |---|---|---|
 | Drive URL parser tests | Pass | `/file/d`, `open?id`, `uc?id`, raw ID, local-path rejection covered |
-| Request detail preview UI | Pass local/static | Page compiles and renders through helper; production has no Drive photo rows to preview |
-| Admin submitted-job preview UI | Pass local/static | Admin home imports and renders preview helper; production has no Drive photo rows to preview |
+| Request detail preview UI | Pass local/static | Page compiles and renders through helper; production has no new Drive photo rows to preview |
+| Admin submitted-job preview UI | Pass local/static | Admin home imports and renders preview helper; production has no new Drive photo rows to preview |
 | Local legacy upload handling | Pass | Existing `uploads/...` records show warning path in Settings |
 
 ## Database checks
 | Check | Result | Notes |
 |---|---|---|
-| QA rows cleaned up | Pass | Both `QA-PROD-DRIVE-FAIL-*` rows are `ยกเลิก` |
+| QA rows cleaned up | Pass | Active QA rows returned to 0 after cleanup |
 | Cleanup audit | Pass | `cancel_request` audit exists for QA cleanup |
-| Attachments with Drive URLs | Blocked | No production Drive uploads possible until folder IDs are configured |
+| Failed Drive write safety | Pass | `QA-PROD-DRIVE-PREVIEW-20260614-214341` was not written after Drive upload failed |
+| Attachments with Drive URLs | Blocked | No production Drive uploads possible until write access is fixed |
 
 ## Automated checks
 | Check | Result | Notes |
 |---|---|---|
-| Unit tests | Pass | `python -m pytest -q`: 60 passed |
+| Unit tests | Pass | `python -m pytest -q`: 63 passed |
 | Compile check | Pass | `python -X utf8 -m compileall app.py streamlit_app.py modules pages tests` |
-| Local Streamlit smoke | Pass | Admin Settings showed storage-health section with local backend |
+| Production Drive read check | Pass | Both folders readable by service account |
+| Production Drive write check | Fail / blocked | Exact error: `Service Accounts do not have storage quota` |
 
 ## Bugs found and fixed
-- Local upload storage was the only backend; `modules/storage.py` now supports Google Drive with service-account upload.
-- Uploaded-file metadata did not include backend/file ID fields; return dict now includes `storage_backend` and `drive_file_id`.
-- File names were not traceable enough; book/guard upload prefixes now include book number where available.
-- Reviewers only saw Drive links or photo-present flags; admin home and request detail now render Drive image bytes in-app.
-- Local `uploads/...` links could look permanent; UI now warns and avoids treating them as durable links.
-- Admin Settings had no Drive health section; it now reports backend, folder config, connection test, and local upload counts.
+- Added the provided production Drive folder IDs as defaults for `book_files` and `guard_submissions`, with secrets/env override support.
+- Added admin-only Drive write diagnostic and service-account email display.
+- Fixed upload call guards to use `is not None`; uploaded objects are no longer skipped by truthiness checks.
+- Added regression tests for the upload guard behavior.
 
 ## Remaining issues
-- Production Drive upload/preview QA is blocked by missing Streamlit Secrets for Google Drive folders.
+- Production Drive upload/preview QA is blocked because the provided folders are normal My Drive folders. Service-account uploads require a Google Shared Drive, OAuth delegation, or another backend with writable storage quota.
 
 Fix plan:
-1. Create/share the Drive root folder with the Google service account used by the app.
-2. Add `[connections.gdrive] root_folder_id` and recommended `[connections.gdrive.folders]` IDs in Streamlit Secrets.
-3. Keep `share_uploaded_files = false` unless anyone-with-link access is explicitly approved.
-4. Rerun officer book upload, guard near/far upload, admin in-app preview, and Drive link permission tests.
+1. Move `Data base หนังสือผู้ขอที่จอด` and `Data base รปภส่งงาน` into a Google Shared Drive, or create equivalent folders in a Shared Drive.
+2. Grant `nacc-parking-streamlit@nacc-parking-streamlit.iam.gserviceaccount.com` Contributor/Content manager access.
+3. Keep the same folder IDs if possible, or provide the new Shared Drive folder IDs.
+4. Rerun Settings `ตรวจสิทธิ์อัปโหลด Google Drive`.
+5. Rerun officer book upload, guard near/far upload, admin in-app preview, request detail preview, and QA cleanup.

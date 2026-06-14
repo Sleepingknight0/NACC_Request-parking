@@ -8,8 +8,9 @@ Production uploads should use Google Drive, not local `uploads/...` paths.
 Required setup:
 
 1. Enable Google Drive API and Google Sheets API for the Google Cloud project used by the service account.
-2. Share the Google Sheet and the target Drive folder with the service account email.
-3. Configure Streamlit Secrets:
+2. Put upload folders in a Google Shared Drive, or use OAuth/domain-wide delegation. A plain My Drive folder shared with a service account can be readable but still fail uploads because service accounts do not have Drive storage quota.
+3. Share the Google Sheet and the target Drive folder with the service account email.
+4. Configure Streamlit Secrets:
 
 ```toml
 [app]
@@ -32,6 +33,13 @@ other = "<OTHER_FOLDER_ID>"
 
 Folder-specific IDs are recommended. If only `root_folder_id` is configured, the app will create or reuse direct child folders named `book_files`, `guard_submissions`, `generated_pdfs`, and `other`.
 
+The current production defaults are:
+
+- `book_files`: `Data base หนังสือผู้ขอที่จอด`
+- `guard_submissions`: `Data base รปภส่งงาน`
+
+Streamlit Secrets or environment variables override these defaults.
+
 `share_uploaded_files = false` keeps uploaded files private and relies on Drive folder permissions. Set it to `true` only if files should be opened by anyone with the link.
 
 ## Drive preview behavior
@@ -43,6 +51,7 @@ If users need to open Drive links directly, the Drive folder or file permissions
 Troubleshooting:
 
 - Permission denied: share the Drive folder with the service account and confirm Drive API is enabled.
+- Storage quota exceeded: move the folder into a Google Shared Drive, or implement OAuth/domain-wide delegation for uploads.
 - File not found: verify the stored Drive URL/file ID and folder permissions.
 - Local upload path: re-upload the file so Google Sheets stores a Drive URL.
 - Unsupported file type: image previews support PNG, JPEG, JPG, and WebP; PDFs show a Drive link/download instead of inline image preview.
