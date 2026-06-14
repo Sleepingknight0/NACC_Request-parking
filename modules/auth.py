@@ -81,7 +81,7 @@ def can_access(page_key: str, role: str | None = None) -> bool:
     return selected_role in PAGE_ACCESS.get(page_key, [ROLE_ADMIN])
 
 
-def render_role_selector() -> None:
+def render_role_selector(*, redirect_home_on_select: bool = False) -> None:
     st.markdown(
         """
         <section class="nacc-role-landing">
@@ -107,14 +107,18 @@ def render_role_selector() -> None:
             )
             if st.button(ROLE_LABELS[role], key=f"select_role_{role}", use_container_width=True):
                 set_current_role(role)
-                _switch_home()
+                if redirect_home_on_select:
+                    _switch_home()
+                st.rerun()
 
     with st.expander("สำหรับผู้ดูแลระบบ"):
         pin = st.text_input("รหัสผู้ดูแล", type="password", key="admin_pin_input")
         if st.button("เข้าสู่ระบบผู้ดูแล", key="select_role_admin", use_container_width=True):
             if pin == _admin_pin():
                 set_current_role(ROLE_ADMIN)
-                _switch_home()
+                if redirect_home_on_select:
+                    _switch_home()
+                st.rerun()
             st.error("รหัสไม่ถูกต้อง")
 
 
@@ -132,7 +136,7 @@ def require_role(allowed_roles: list[str], page_key: str | None = None) -> None:
     role = get_current_role()
     render_role_badge()
     if not role:
-        render_role_selector()
+        render_role_selector(redirect_home_on_select=True)
         st.stop()
 
     allowed = allowed_roles
