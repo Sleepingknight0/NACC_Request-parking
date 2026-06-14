@@ -30,6 +30,13 @@ except Exception:  # pragma: no cover
 UPLOAD_DIR = Path("uploads")
 DRIVE_MISSING_CONFIG_MESSAGE = "ยังไม่ได้ตั้งค่า Google Drive สำหรับเก็บไฟล์"
 DRIVE_UPLOAD_FAILED_MESSAGE = "อัปโหลดไฟล์ไป Google Drive ไม่สำเร็จ"
+DRIVE_MY_DRIVE_FOLDER_MESSAGE = (
+    "โฟลเดอร์ Google Drive ปลายทางยังอยู่ใน My Drive "
+    "service account อัปโหลดไฟล์บน production ไม่ได้เพราะไม่มีพื้นที่เก็บไฟล์ "
+    "กรุณาสร้างหรือย้ายโฟลเดอร์ไป Google Shared Drive แล้วตั้งค่า folder ID ใหม่"
+)
+DRIVE_FOLDER_NOT_FOLDER_MESSAGE = "folder ID ที่ตั้งค่าไว้ไม่ใช่โฟลเดอร์ Google Drive"
+DRIVE_FOLDER_NO_WRITE_MESSAGE = "service account ยังไม่มีสิทธิ์เพิ่มไฟล์ในโฟลเดอร์ Google Drive นี้"
 DRIVE_FOLDER_KEYS = ("book_files", "guard_submissions", "generated_pdfs", "other")
 DEFAULT_DRIVE_FOLDER_IDS = {
     "book_files": "1mhxxhIUUUse3_kUPJ8qA6xLIN0h1pOmx",
@@ -46,6 +53,12 @@ class DriveStorageConfigError(RuntimeError):
 def describe_drive_upload_error(exc: Exception) -> str:
     text = str(exc or "")
     lower_text = text.lower()
+
+    if isinstance(exc, DriveStorageConfigError):
+        return text
+
+    if DRIVE_MY_DRIVE_FOLDER_MESSAGE in text:
+        return DRIVE_MY_DRIVE_FOLDER_MESSAGE
 
     if "storagequotaexceeded" in lower_text or "service accounts do not have storage quota" in lower_text:
         return (
@@ -314,6 +327,52 @@ def _drive_query_escape(value: str) -> str:
     return str(value or "").replace("\\", "\\\\").replace("'", "\\'")
 
 
+def _drive_folder_status(meta: dict) -> dict:
+    capabilities = meta.get("capabilities", {})
+    if not isinstance(capabilities, dict):
+        capabilities = {}
+
+    drive_id = str(meta.get("driveId") or meta.get("drive_id") or "")
+    can_add_children = capabilities.get("canAddChildren")
+    mime_type = str(meta.get("mimeType") or meta.get("mime_type") or "")
+    is_folder = mime_type == "application/vnd.google-apps.folder"
+    is_shared_drive = bool(drive_id)
+
+    return {
+        "id": str(meta.get("id", "") or ""),
+        "name": str(meta.get("name") or meta.get("title") or ""),
+        "mime_type": mime_type,
+        "drive_id": drive_id,
+        "storage_location": "Shared Drive" if is_shared_drive else "My Drive",
+        "is_folder": is_folder,
+        "is_shared_drive": is_shared_drive,
+        "can_add_children": can_add_children,
+        "upload_ready": is_folder and is_shared_drive and can_add_children is not False,
+    }
+
+
+def _get_drive_folder_metadata(service, folder_id: str) -> dict:
+    return service.files().get(
+        fileId=folder_id,
+        fields="id,name,mimeType,driveId,capabilities(canAddChildren,canEdit)",
+        supportsAllDrives=True,
+    ).execute()
+
+
+def ensure_drive_folder_upload_ready(folder_id: str, service=None) -> dict:
+    service = service or get_drive_service()
+    status = _drive_folder_status(_get_drive_folder_metadata(service, folder_id))
+
+    if not status["is_folder"]:
+        raise DriveStorageConfigError(DRIVE_FOLDER_NOT_FOLDER_MESSAGE)
+    if not status["is_shared_drive"]:
+        raise DriveStorageConfigError(DRIVE_MY_DRIVE_FOLDER_MESSAGE)
+    if status["can_add_children"] is False:
+        raise DriveStorageConfigError(DRIVE_FOLDER_NO_WRITE_MESSAGE)
+
+    return status
+
+
 def ensure_or_get_folder(folder: str, parent_id: str | None = None) -> str:
     """
     Return the configured Drive folder ID for a storage bucket.
@@ -333,6 +392,7 @@ def ensure_or_get_folder(folder: str, parent_id: str | None = None) -> str:
         raise DriveStorageConfigError(DRIVE_MISSING_CONFIG_MESSAGE)
 
     service = get_drive_service()
+    ensure_drive_folder_upload_ready(root_folder_id, service=service)
     folder_name = key
     query = (
         "mimeType='application/vnd.google-apps.folder' "
@@ -393,6 +453,7 @@ def upload_file_to_drive(file, folder: str, prefix: str) -> dict:
 
     folder_id = ensure_or_get_folder(folder)
     service = get_drive_service()
+    ensure_drive_folder_upload_ready(folder_id, service=service)
     original_name = getattr(file, "name", "upload.bin")
     mime_type = str(getattr(file, "type", "") or "application/octet-stream")
     file_name = make_safe_file_name(prefix, original_name)
@@ -477,25 +538,35 @@ def check_drive_connection() -> dict:
 
     try:
         service = get_drive_service()
-        root = service.files().get(
-            fileId=target_folder_id,
-            fields="id,name,mimeType",
-            supportsAllDrives=True,
-        ).execute()
+        root = _get_drive_folder_metadata(service, target_folder_id)
+        root_status = _drive_folder_status(root)
         folder_results = {}
         for key, folder_id in config["folders"].items():
             if not folder_id:
-                folder_results[key] = {"configured": False, "ok": False, "name": ""}
+                folder_results[key] = {
+                    "configured": False,
+                    "ok": False,
+                    "name": "",
+                    "storage_location": "",
+                    "upload_ready": False,
+                }
                 continue
-            meta = service.files().get(
-                fileId=folder_id,
-                fields="id,name,mimeType",
-                supportsAllDrives=True,
-            ).execute()
-            folder_results[key] = {"configured": True, "ok": True, "name": meta.get("name", "")}
+            meta = _get_drive_folder_metadata(service, folder_id)
+            folder_status = _drive_folder_status(meta)
+            folder_results[key] = {
+                "configured": True,
+                "ok": True,
+                "name": folder_status["name"],
+                "storage_location": folder_status["storage_location"],
+                "drive_id": folder_status["drive_id"],
+                "can_add_children": folder_status["can_add_children"],
+                "upload_ready": folder_status["upload_ready"],
+            }
         return {
             "ok": True,
-            "root_name": root.get("name", ""),
+            "root_name": root_status["name"],
+            "root_storage_location": root_status["storage_location"],
+            "root_upload_ready": root_status["upload_ready"],
             "root_configured": bool(config["root_folder_id"]),
             "share_uploaded_files": config["share_uploaded_files"],
             "folders": folder_results,
@@ -506,8 +577,9 @@ def check_drive_connection() -> dict:
 
 def check_drive_write_access(folder: str = "book_files") -> dict:
     try:
-        folder_id = ensure_or_get_folder(folder)
         service = get_drive_service()
+        folder_id = ensure_or_get_folder(folder)
+        folder_status = ensure_drive_folder_upload_ready(folder_id, service=service)
         file_name = f"nacc_drive_healthcheck_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         media = MediaIoBaseUpload(
             io.BytesIO(b"NACC Drive health check"),
@@ -538,6 +610,8 @@ def check_drive_write_access(folder: str = "book_files") -> dict:
             "file_name": created.get("name", file_name),
             "web_url": created.get("webViewLink", ""),
             "trashed": trashed,
+            "storage_location": folder_status["storage_location"],
+            "drive_id": folder_status["drive_id"],
         }
     except Exception as exc:
         return {

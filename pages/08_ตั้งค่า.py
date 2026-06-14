@@ -47,6 +47,8 @@ if st.button("ตรวจการเชื่อมต่อ Google Drive", us
         drive_check = check_drive_connection()
     if drive_check.get("ok"):
         st.success(f"เชื่อมต่อ Google Drive ได้: {drive_check.get('root_name') or 'folder พร้อมใช้งาน'}")
+        if not drive_check.get("root_upload_ready", True):
+            st.warning("อ่านโฟลเดอร์ได้ แต่ยังไม่พร้อมอัปโหลด production ถ้าโฟลเดอร์ยังอยู่ใน My Drive ต้องใช้ Google Shared Drive")
         folder_rows = pd.DataFrame(
             [
                 {
@@ -54,6 +56,8 @@ if st.button("ตรวจการเชื่อมต่อ Google Drive", us
                     "configured": "ตั้งค่าแล้ว" if result.get("configured") else "ยังไม่ตั้งค่า",
                     "status": "อ่านได้" if result.get("ok") else "ไม่ได้ตรวจ",
                     "name": result.get("name", ""),
+                    "location": result.get("storage_location", ""),
+                    "upload_ready": "พร้อม" if result.get("upload_ready") else "ยังไม่พร้อม",
                 }
                 for key, result in drive_check.get("folders", {}).items()
             ]

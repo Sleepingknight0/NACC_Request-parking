@@ -6,6 +6,8 @@ import pytest
 
 from modules.storage import (
     DriveStorageConfigError,
+    DRIVE_MY_DRIVE_FOLDER_MESSAGE,
+    _drive_folder_status,
     describe_drive_upload_error,
     get_drive_config,
     get_file_storage_backend,
@@ -103,3 +105,34 @@ def test_describe_drive_upload_error_explains_permission_denied():
 
     assert "สิทธิ์" in message
     assert "service account" in message
+
+
+def test_describe_drive_upload_error_preserves_drive_config_error():
+    exc = DriveStorageConfigError(DRIVE_MY_DRIVE_FOLDER_MESSAGE)
+
+    assert describe_drive_upload_error(exc) == DRIVE_MY_DRIVE_FOLDER_MESSAGE
+
+
+def test_drive_folder_status_requires_shared_drive_for_upload_ready():
+    my_drive_status = _drive_folder_status(
+        {
+            "id": "folder_1",
+            "name": "My Drive folder",
+            "mimeType": "application/vnd.google-apps.folder",
+            "capabilities": {"canAddChildren": True},
+        }
+    )
+    shared_drive_status = _drive_folder_status(
+        {
+            "id": "folder_2",
+            "name": "Shared Drive folder",
+            "mimeType": "application/vnd.google-apps.folder",
+            "driveId": "shared_drive_id",
+            "capabilities": {"canAddChildren": True},
+        }
+    )
+
+    assert my_drive_status["storage_location"] == "My Drive"
+    assert my_drive_status["upload_ready"] is False
+    assert shared_drive_status["storage_location"] == "Shared Drive"
+    assert shared_drive_status["upload_ready"] is True
