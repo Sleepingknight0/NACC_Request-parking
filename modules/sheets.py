@@ -297,7 +297,7 @@ def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
             with st.expander("รายละเอียด error สำหรับแก้ระบบ"):
                 st.code(str(exc))
 
-            st.stop()
+            return _empty_df(worksheet)
 
         raise RuntimeError(
             f"อ่าน worksheet '{sheet_title}' จาก Google Sheets ไม่สำเร็จ"
