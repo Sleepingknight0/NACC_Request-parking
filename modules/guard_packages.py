@@ -151,7 +151,12 @@ def build_guard_packages(
     } if not requests.empty else {}
 
     for request_id, task_group in tasks.groupby(tasks["request_id"].astype(str), dropna=False):
+        request_id = str(request_id).strip()
+        if not request_id or request_id.lower() == "nan":
+            continue
         request = request_lookup.get(str(request_id), {})
+        if not request:
+            continue
         request_status = str(request.get("status", ""))
         status = _package_status(task_group.get("status", pd.Series(dtype=str)).astype(str).tolist(), request_status)
         if not include_cancelled and status == "cancelled":

@@ -71,6 +71,23 @@ def test_package_status_uses_operational_priority():
     assert packages.iloc[0]["primary_task_id"] == "TASK-2"
 
 
+def test_orphan_tasks_are_not_operational_packages():
+    requests = pd.DataFrame([{"request_id": "REQ-1", "book_no": "QA", "status": "pending"}])
+    dates = pd.DataFrame([{"request_date_id": "DATE-1", "request_id": "REQ-1", "parking_date": "2026-06-20", "status": "pending"}])
+    tasks = pd.DataFrame(
+        [
+            {"task_id": "TASK-1", "request_id": "REQ-1", "parking_date": "2026-06-20", "status": "pending", "created_at": "1"},
+            {"task_id": "TASK-ORPHAN", "request_id": "", "parking_date": "", "status": "pending", "created_at": "2"},
+            {"task_id": "TASK-MISSING", "request_id": "REQ-MISSING", "parking_date": "2026-06-21", "status": "pending", "created_at": "3"},
+        ]
+    )
+
+    packages = build_guard_packages(requests=requests, dates=dates, tasks=tasks, vehicles=pd.DataFrame())
+
+    assert len(packages) == 1
+    assert packages.iloc[0]["request_id"] == "REQ-1"
+
+
 def test_guard_open_date_is_start_date_minus_one_day():
     package = {"start_date": "2026-06-20"}
 
@@ -93,4 +110,3 @@ def test_cancelled_packages_can_be_hidden():
     )
 
     assert packages.empty
-
