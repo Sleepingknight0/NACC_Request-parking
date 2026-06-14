@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 import pandas as pd
 
@@ -21,11 +22,11 @@ except Exception:  # pragma: no cover
     GSheetsConnection = None
 
 try:
-    import gspread
     from google.oauth2.service_account import Credentials
+    from google.auth.transport.requests import AuthorizedSession
 except Exception:  # pragma: no cover
-    gspread = None
     Credentials = None
+    AuthorizedSession = None
 
 
 DATA_DIR = Path(os.getenv("PARKING_APP_DATA_DIR", "data"))
@@ -184,9 +185,16 @@ def get_connection():
     return st.connection("gsheets", type=GSheetsConnection)
 
 
-def _get_gspread_spreadsheet():
-    if st is None or gspread is None or Credentials is None:
-        raise RuntimeError("gspread backend is not available")
+def _spreadsheet_id_from_url(spreadsheet_url: str) -> str:
+    match = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", spreadsheet_url)
+    if match:
+        return match.group(1)
+    return spreadsheet_url.strip()
+
+
+def _get_google_session() -> tuple[AuthorizedSession, str]:
+    if st is None or Credentials is None or AuthorizedSession is None:
+        raise RuntimeError("Google API backend is not available")
 
     spreadsheet_url = _spreadsheet_url()
     if not spreadsheet_url:
@@ -205,14 +213,25 @@ def _get_gspread_spreadsheet():
         service_account_info,
         scopes=list(GSHEETS_SCOPES),
     )
-    client = gspread.authorize(credentials)
-    return client.open_by_url(spreadsheet_url)
+    return AuthorizedSession(credentials), _spreadsheet_id_from_url(spreadsheet_url)
 
 
-def _read_gsheet_with_gspread(sheet_title: str) -> pd.DataFrame:
-    spreadsheet = _get_gspread_spreadsheet()
-    worksheet = spreadsheet.worksheet(sheet_title)
-    values = worksheet.get_all_values()
+def _sheet_range(sheet_title: str, cell_range: str = "") -> str:
+    a1_range = f"'{sheet_title}'"
+    if cell_range:
+        a1_range = f"{a1_range}!{cell_range}"
+    return quote(a1_range, safe="")
+
+
+def _read_gsheet_with_google_api(sheet_title: str) -> pd.DataFrame:
+    session, spreadsheet_id = _get_google_session()
+    url = (
+        f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
+        f"{_sheet_range(sheet_title)}"
+    )
+    response = session.get(url, params={"valueRenderOption": "FORMATTED_VALUE"})
+    response.raise_for_status()
+    values = response.json().get("values", [])
     if not values:
         return pd.DataFrame()
 
@@ -221,12 +240,21 @@ def _read_gsheet_with_gspread(sheet_title: str) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=headers)
 
 
-def _write_gsheet_with_gspread(sheet_title: str, sheet_df: pd.DataFrame) -> None:
-    spreadsheet = _get_gspread_spreadsheet()
-    worksheet = spreadsheet.worksheet(sheet_title)
+def _write_gsheet_with_google_api(sheet_title: str, sheet_df: pd.DataFrame) -> None:
+    session, spreadsheet_id = _get_google_session()
+    clear_range = _sheet_range(sheet_title)
+    update_range = _sheet_range(sheet_title, "A1")
+    clear_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{clear_range}:clear"
+    update_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{update_range}"
     payload = [sheet_df.columns.tolist()] + sheet_df.fillna("").astype(str).values.tolist()
-    worksheet.clear()
-    worksheet.update(range_name="A1", values=payload)
+    clear_response = session.post(clear_url)
+    clear_response.raise_for_status()
+    update_response = session.put(
+        update_url,
+        params={"valueInputOption": "USER_ENTERED"},
+        json={"values": payload},
+    )
+    update_response.raise_for_status()
 
 
 def initialize_storage() -> None:
@@ -278,8 +306,8 @@ def _write_csv_sheet(worksheet: str, df: pd.DataFrame) -> None:
 def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
     sheet_title = sheet_title_for(worksheet)
     try:
-        if gspread is not None and Credentials is not None:
-            df = _read_gsheet_with_gspread(sheet_title)
+        if Credentials is not None and AuthorizedSession is not None:
+            df = _read_gsheet_with_google_api(sheet_title)
         else:
             conn = get_connection()
             df = conn.read(worksheet=sheet_title, ttl=ttl)
@@ -313,8 +341,8 @@ def _write_gsheet(worksheet: str, df: pd.DataFrame) -> None:
     sheet_df = _to_sheet_headers(worksheet, normalized)
 
     try:
-        if gspread is not None and Credentials is not None:
-            _write_gsheet_with_gspread(sheet_title, sheet_df)
+        if Credentials is not None and AuthorizedSession is not None:
+            _write_gsheet_with_google_api(sheet_title, sheet_df)
         else:
             conn = get_connection()
             conn.update(worksheet=sheet_title, data=sheet_df)
