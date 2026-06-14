@@ -7,40 +7,42 @@ import streamlit as st
 from modules.constants import GUARD_TASK_STATUS_LABELS, REQUEST_STATUS_LABELS
 
 
-THEME_OPTIONS = ("เช้า", "กลางคืน")
-THEME_QUERY_VALUES = {"day": "เช้า", "light": "เช้า", "night": "กลางคืน", "dark": "กลางคืน"}
-THEME_QUERY_KEYS = {"เช้า": "day", "กลางคืน": "night"}
+THEME_OPTIONS = ("day", "night")
+THEME_QUERY_VALUES = {"day": "day", "light": "day", "night": "night", "dark": "night"}
+THEME_QUERY_KEYS = {"day": "day", "night": "night"}
 
 THEMES = {
-    "เช้า": {
+    "day": {
         "bg": "#FFFFFF",
-        "surface": "#F8F5FF",
-        "surface_2": "#F0E9FF",
+        "surface": "#FFFFFF",
+        "surface_2": "#F7F2FB",
         "surface_3": "#FFFFFF",
-        "text": "#171021",
-        "muted": "#695B7D",
-        "border": "#DFD4F2",
-        "primary": "#5B2AA0",
-        "primary_hover": "#4A2188",
-        "primary_soft": "#EFE7FF",
-        "sidebar": "#FBF9FF",
+        "text": "#1A1020",
+        "muted": "#66566F",
+        "border": "#E7DDF0",
+        "primary": "#61116C",
+        "primary_hover": "#4B0D55",
+        "on_primary": "#FFFFFF",
+        "primary_soft": "#F3EAF7",
+        "sidebar": "#FFFFFF",
         "input": "#FFFFFF",
-        "shadow": "0 1px 2px rgba(63, 38, 100, 0.08)",
+        "shadow": "0 1px 3px rgba(97, 17, 108, 0.10)",
     },
-    "กลางคืน": {
-        "bg": "#110B1D",
-        "surface": "#1B1230",
-        "surface_2": "#26183E",
-        "surface_3": "#160F26",
-        "text": "#F7F2FF",
-        "muted": "#CBBCE7",
-        "border": "#3A2A57",
-        "primary": "#B28CFF",
-        "primary_hover": "#C7AAFF",
-        "primary_soft": "#2D1F49",
-        "sidebar": "#160E25",
-        "input": "#211538",
-        "shadow": "0 1px 2px rgba(0, 0, 0, 0.28)",
+    "night": {
+        "bg": "#140718",
+        "surface": "#211027",
+        "surface_2": "#2C1735",
+        "surface_3": "#190B1F",
+        "text": "#FFF8FF",
+        "muted": "#D8C4E0",
+        "border": "#4A2656",
+        "primary": "#D2A808",
+        "primary_hover": "#E7C248",
+        "on_primary": "#1A1020",
+        "primary_soft": "#341840",
+        "sidebar": "#18091D",
+        "input": "#24102B",
+        "shadow": "0 1px 3px rgba(0, 0, 0, 0.34)",
     },
 }
 
@@ -53,13 +55,13 @@ def _theme_mode() -> str:
     mode = THEME_QUERY_VALUES.get(str(query_theme).lower(), st.session_state.get("nacc_theme_mode", THEME_OPTIONS[0]))
     st.session_state.nacc_theme_mode = mode
 
-    day_active = " is-active" if mode == "เช้า" else ""
-    night_active = " is-active" if mode == "กลางคืน" else ""
+    day_active = " is-active" if mode == "day" else ""
+    night_active = " is-active" if mode == "night" else ""
     st.markdown(
         f"""
         <nav class="theme-switcher" aria-label="เลือกธีม">
-            <a class="theme-icon-button{day_active}" href="?theme={THEME_QUERY_KEYS["เช้า"]}" target="_self" title="ธีมเช้า" aria-label="ธีมเช้า">☀</a>
-            <a class="theme-icon-button{night_active}" href="?theme={THEME_QUERY_KEYS["กลางคืน"]}" target="_self" title="ธีมกลางคืน" aria-label="ธีมกลางคืน">☾</a>
+            <a class="theme-icon-button{day_active}" href="?theme={THEME_QUERY_KEYS["day"]}" target="_self" title="ธีมเช้า" aria-label="ธีมเช้า">☀</a>
+            <a class="theme-icon-button{night_active}" href="?theme={THEME_QUERY_KEYS["night"]}" target="_self" title="ธีมกลางคืน" aria-label="ธีมกลางคืน">☾</a>
         </nav>
         """,
         unsafe_allow_html=True,
@@ -69,7 +71,7 @@ def _theme_mode() -> str:
 
 def inject_global_css() -> None:
     mode = _theme_mode()
-    colors = THEMES.get(mode, THEMES["เช้า"])
+    colors = THEMES.get(mode, THEMES["day"])
     css = """
         <style>
         :root {
@@ -82,6 +84,7 @@ def inject_global_css() -> None:
             --border: __BORDER__;
             --primary: __PRIMARY__;
             --primary-hover: __PRIMARY_HOVER__;
+            --on-primary: __ON_PRIMARY__;
             --primary-soft: __PRIMARY_SOFT__;
             --sidebar: __SIDEBAR__;
             --input: __INPUT__;
@@ -128,7 +131,7 @@ def inject_global_css() -> None:
         .theme-icon-button:hover,
         .theme-icon-button.is-active {
             background: var(--primary);
-            color: #FFFFFF !important;
+            color: var(--on-primary) !important;
             border-color: var(--primary);
         }
 
@@ -202,6 +205,17 @@ def inject_global_css() -> None:
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] {
             background: var(--primary-soft) !important;
             color: var(--primary) !important;
+        }
+
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul li:first-child a[data-testid="stSidebarNavLink"] > * {
+            display: none !important;
+        }
+
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul li:first-child a::after {
+            content: "หน้าหลัก";
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: var(--text);
         }
 
         div[data-testid="stMetric"] {
@@ -314,14 +328,14 @@ def inject_global_css() -> None:
         div[data-testid="stFormSubmitButton"] button[kind="primary"] {
             background: var(--primary);
             border-color: var(--primary);
-            color: #FFFFFF;
+            color: var(--on-primary);
         }
 
         button[kind="primary"]:hover,
         div[data-testid="stFormSubmitButton"] button[kind="primary"]:hover {
             background: var(--primary-hover);
             border-color: var(--primary-hover);
-            color: #FFFFFF;
+            color: var(--on-primary);
         }
 
         button[kind="secondary"] {
@@ -431,6 +445,7 @@ def inject_global_css() -> None:
         "__BORDER__": colors["border"],
         "__PRIMARY__": colors["primary"],
         "__PRIMARY_HOVER__": colors["primary_hover"],
+        "__ON_PRIMARY__": colors["on_primary"],
         "__PRIMARY_SOFT__": colors["primary_soft"],
         "__SIDEBAR__": colors["sidebar"],
         "__INPUT__": colors["input"],

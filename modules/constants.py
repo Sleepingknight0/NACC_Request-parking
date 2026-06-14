@@ -174,6 +174,16 @@ WORKSHEET_SCHEMAS = {
     ],
 }
 
+WORKSHEET_TITLES = {
+    "Requests": "คำขอ",
+    "Request_Dates": "วันที่จอด",
+    "Vehicles": "ทะเบียนรถ",
+    "Guard_Tasks": "งาน รปภ.",
+    "Guard_Submissions": "การส่งงาน รปภ.",
+    "Attachments": "ไฟล์แนบ",
+    "Audit_Log": "ประวัติการทำรายการ",
+}
+
 WORKSHEET_HEADER_LABELS = {
     "Requests": {
         "request_id": "รหัสคำขอ",
@@ -278,6 +288,11 @@ def field_to_thai_map(worksheet: str) -> dict[str, str]:
 def thai_to_field_map(worksheet: str) -> dict[str, str]:
     """Map Thai Google Sheet headers back to internal English field keys."""
     return {thai: field_key for field_key, thai in WORKSHEET_HEADER_LABELS[worksheet].items()}
+
+
+def sheet_title_for(worksheet: str) -> str:
+    """Return the visible Google Sheets tab name for an internal worksheet key."""
+    return WORKSHEET_TITLES.get(worksheet, worksheet)
 
 ID_PREFIXES = {
     "Requests": "REQ",

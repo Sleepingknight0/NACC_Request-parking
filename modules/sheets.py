@@ -8,6 +8,7 @@ import pandas as pd
 from modules.constants import (
     WORKSHEET_SCHEMAS,
     field_to_thai_map,
+    sheet_title_for,
     thai_to_field_map,
 )
 
@@ -196,15 +197,16 @@ def _write_csv_sheet(worksheet: str, df: pd.DataFrame) -> None:
 
 
 def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
+    sheet_title = sheet_title_for(worksheet)
     try:
         conn = get_connection()
-        df = conn.read(worksheet=worksheet, ttl=ttl)
+        df = conn.read(worksheet=sheet_title, ttl=ttl)
     except Exception as exc:
         if st is not None:
-            st.error(f"อ่านข้อมูลจาก Google Sheets ไม่สำเร็จ: {worksheet}")
+            st.error(f"อ่านข้อมูลจาก Google Sheets ไม่สำเร็จ: {sheet_title}")
             st.info(
                 "ตรวจสอบ 4 จุดนี้: "
-                "1) ชื่อแท็บใน Google Sheet ต้องตรงกับชื่อ worksheet "
+                "1) ชื่อแท็บใน Google Sheet ต้องตรงกับชื่อแท็บภาษาไทยที่ระบบใช้ "
                 "2) แชร์ไฟล์ Google Sheet ให้ service account แล้ว "
                 "3) ตั้งค่า Streamlit Secrets ถูกต้อง "
                 "4) private_key ต้องเป็น PEM key ที่ขึ้นต้นด้วย BEGIN PRIVATE KEY"
@@ -216,27 +218,28 @@ def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
             st.stop()
 
         raise RuntimeError(
-            f"อ่าน worksheet '{worksheet}' จาก Google Sheets ไม่สำเร็จ"
+            f"อ่าน worksheet '{sheet_title}' จาก Google Sheets ไม่สำเร็จ"
         ) from exc
 
     return _normalize_columns(worksheet, df)
 
 
 def _write_gsheet(worksheet: str, df: pd.DataFrame) -> None:
+    sheet_title = sheet_title_for(worksheet)
     conn = get_connection()
 
     normalized = _normalize_columns(worksheet, df.copy())
     sheet_df = _to_sheet_headers(worksheet, normalized)
 
     try:
-        conn.update(worksheet=worksheet, data=sheet_df)
+        conn.update(worksheet=sheet_title, data=sheet_df)
     except Exception as exc:
         if st is not None:
-            st.error(f"เขียนข้อมูลไปยัง Google Sheets ไม่สำเร็จ: {worksheet}")
+            st.error(f"เขียนข้อมูลไปยัง Google Sheets ไม่สำเร็จ: {sheet_title}")
             st.info(
                 "ตรวจสอบ 4 จุดนี้: "
                 "1) service account ต้องมีสิทธิ์ Editor "
-                "2) ชื่อแท็บต้องตรง "
+                "2) ชื่อแท็บภาษาไทยต้องตรง "
                 "3) หัวคอลัมน์ภาษาไทยต้องตรงกับ mapping "
                 "4) Google Sheet ไม่ควรถูกป้องกันช่วงเซลล์ที่แอปต้องเขียน"
             )
@@ -247,7 +250,7 @@ def _write_gsheet(worksheet: str, df: pd.DataFrame) -> None:
             st.stop()
 
         raise RuntimeError(
-            f"เขียน worksheet '{worksheet}' ไปยัง Google Sheets ไม่สำเร็จ"
+            f"เขียน worksheet '{sheet_title}' ไปยัง Google Sheets ไม่สำเร็จ"
         ) from exc
 
 
