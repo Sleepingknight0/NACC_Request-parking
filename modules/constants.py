@@ -22,6 +22,30 @@ GUARD_TASK_STATUS_LABELS = {
     "cancelled": "ยกเลิก",
 }
 
+VEHICLE_STATUS_LABELS = {
+    "active": "ใช้งานอยู่",
+    "cancelled": "ยกเลิก",
+}
+
+ATTACHMENT_STATUS_LABELS = {
+    "active": "ใช้งานอยู่",
+    "deleted": "ลบแล้ว",
+    "replaced": "แทนที่แล้ว",
+}
+
+STATUS_LABELS_BY_WORKSHEET = {
+    "Requests": REQUEST_STATUS_LABELS,
+    "Request_Dates": REQUEST_STATUS_LABELS,
+    "Vehicles": VEHICLE_STATUS_LABELS,
+    "Guard_Tasks": GUARD_TASK_STATUS_LABELS,
+    "Attachments": ATTACHMENT_STATUS_LABELS,
+}
+
+STATUS_CODES_BY_WORKSHEET = {
+    worksheet: {label: code for code, label in labels.items()}
+    for worksheet, labels in STATUS_LABELS_BY_WORKSHEET.items()
+}
+
 NACC_DEPARTMENTS = [
     "สำนักกิจการคณะกรรมการ ป.ป.ช.",
     "สำนักการประชุม",

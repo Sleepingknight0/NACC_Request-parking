@@ -8,6 +8,8 @@ from urllib.parse import quote
 import pandas as pd
 
 from modules.constants import (
+    STATUS_CODES_BY_WORKSHEET,
+    STATUS_LABELS_BY_WORKSHEET,
     WORKSHEET_SCHEMAS,
     field_to_thai_map,
     sheet_title_for,
@@ -129,11 +131,56 @@ def _to_internal_headers(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def _to_internal_values(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
+    result = df.copy()
+
+    status_reverse = STATUS_CODES_BY_WORKSHEET.get(worksheet, {})
+    if "status" in result.columns and status_reverse:
+        result["status"] = result["status"].map(
+            lambda value: status_reverse.get(str(value).strip(), str(value).strip())
+        )
+
+    boolean_columns = [column for column in ["has_vehicle_plates", "is_final"] if column in result.columns]
+    for column in boolean_columns:
+        result[column] = result[column].map(
+            lambda value: {
+                "มี": "TRUE",
+                "ไม่มี": "FALSE",
+                "ใช่": "TRUE",
+                "ไม่ใช่": "FALSE",
+            }.get(str(value).strip(), str(value).strip())
+        )
+
+    return result
+
+
+def _to_sheet_values(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
+    result = df.copy()
+
+    status_labels = STATUS_LABELS_BY_WORKSHEET.get(worksheet, {})
+    if "status" in result.columns and status_labels:
+        result["status"] = result["status"].map(
+            lambda value: status_labels.get(str(value).strip(), str(value).strip())
+        )
+
+    if "has_vehicle_plates" in result.columns:
+        result["has_vehicle_plates"] = result["has_vehicle_plates"].map(
+            lambda value: "มี" if str(value).strip().upper() in {"TRUE", "YES", "1", "มี"} else "ไม่มี"
+        )
+
+    if "is_final" in result.columns:
+        result["is_final"] = result["is_final"].map(
+            lambda value: "ใช่" if str(value).strip().upper() in {"TRUE", "YES", "1", "ใช่"} else "ไม่ใช่"
+        )
+
+    return result
+
+
 def _to_sheet_headers(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
     """
     Convert internal English field keys to Thai headers before writing.
     """
-    result = df.copy()
+    result = _to_sheet_values(worksheet, df.copy())
     header_map = field_to_thai_map(worksheet)
 
     result.columns = [
@@ -151,7 +198,7 @@ def _normalize_columns(worksheet: str, df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return _empty_df(worksheet)
 
-    normalized = _to_internal_headers(worksheet, df)
+    normalized = _to_internal_values(worksheet, _to_internal_headers(worksheet, df))
 
     for column in WORKSHEET_SCHEMAS[worksheet]:
         if column not in normalized.columns:

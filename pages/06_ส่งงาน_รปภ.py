@@ -54,15 +54,12 @@ with st.form("guard_submission"):
     extra_photo = st.file_uploader("รูปเสริม", type=["png", "jpg", "jpeg"])
     note = st.text_area("รายละเอียดเพิ่มเติม")
     submitted_by = st.text_input("ผู้ส่งงาน", value="รปภ.")
-    confirmed = st.checkbox("ยืนยันว่าภาพถ่ายถูกต้องและต้องการส่งงานนี้")
     submitted = st.form_submit_button("ส่งงาน", type="primary")
 
 if submitted:
     ok, message = validate_guard_submission(near_photo, far_photo)
     if not ok:
         st.error(message)
-    elif not confirmed:
-        st.error("กรุณายืนยันก่อนส่งงาน")
     else:
         near_meta = upload_file(near_photo, "guard_submissions", f"{task_id}_near")
         far_meta = upload_file(far_photo, "guard_submissions", f"{task_id}_far")

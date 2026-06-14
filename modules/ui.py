@@ -463,6 +463,18 @@ def inject_global_css() -> None:
             background: var(--primary) !important;
             color: var(--on-primary) !important;
             border-color: var(--primary) !important;
+            font-weight: 800 !important;
+            opacity: 1 !important;
+        }
+
+        div[data-testid="stFileUploader"] button *,
+        div[data-testid="stDownloadButton"] button *,
+        button[kind="primary"] *,
+        div[data-testid="stFormSubmitButton"] button[kind="primary"] * {
+            color: var(--on-primary) !important;
+            fill: var(--on-primary) !important;
+            stroke: var(--on-primary) !important;
+            opacity: 1 !important;
         }
 
         div[data-testid="stRadio"] label,
@@ -487,27 +499,29 @@ def inject_global_css() -> None:
 
         button[kind="primary"],
         div[data-testid="stFormSubmitButton"] button[kind="primary"] {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: var(--on-primary);
+            background: var(--primary) !important;
+            border-color: var(--primary) !important;
+            color: var(--on-primary) !important;
+            font-weight: 850 !important;
         }
 
         button[kind="primary"]:hover,
         div[data-testid="stFormSubmitButton"] button[kind="primary"]:hover {
-            background: var(--primary-hover);
-            border-color: var(--primary-hover);
-            color: var(--on-primary);
+            background: var(--primary-hover) !important;
+            border-color: var(--primary-hover) !important;
+            color: var(--on-primary) !important;
         }
 
         button[kind="secondary"] {
-            background: var(--surface-3);
-            border-color: var(--border);
-            color: var(--text);
+            background: var(--surface-3) !important;
+            border-color: var(--border) !important;
+            color: var(--text) !important;
+            font-weight: 750 !important;
         }
 
         button[kind="secondary"]:hover {
-            border-color: var(--primary);
-            color: var(--primary);
+            border-color: var(--primary) !important;
+            color: var(--primary) !important;
         }
 
         code {
