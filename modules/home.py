@@ -5,6 +5,7 @@ import streamlit as st
 
 from modules.auth import ROLE_ADMIN, ROLE_GUARD, ROLE_OFFICER, get_current_role, render_role_badge, render_role_selector
 from modules.db import accept_guard_package, mark_guard_package_done
+from modules.drive_preview import render_drive_image_preview
 from modules.guard_packages import build_guard_packages
 from modules.locks import begin_action_lock, end_action_lock
 from modules.pdf_generator import build_parking_pdf
@@ -173,14 +174,25 @@ def _render_admin_submitted(packages, vehicles, submissions) -> None:
         request_id = str(row["request_id"])
         request_submissions = submissions[submissions["request_id"].astype(str) == request_id] if not submissions.empty else submissions
         latest = request_submissions.sort_values("submitted_at", ascending=False).head(1)
-        near_ok = "มี" if not latest.empty and str(latest.iloc[0].get("near_photo_url", "")).strip() else "ไม่มี"
-        far_ok = "มี" if not latest.empty and str(latest.iloc[0].get("far_photo_url", "")).strip() else "ไม่มี"
+        latest_row = latest.iloc[0].to_dict() if not latest.empty else {}
         with st.container(border=True):
             st.markdown(f"### เลขหนังสือ {row['book_no']}")
             st.write(f"**สำนัก:** {row['source_agency']}")
             st.write(f"**วันที่จอด:** {row['date_summary']} | **จุดจอด:** {row['parking_location']}")
-            st.write(f"**เวลาส่งงาน:** {row.get('submitted_at') or '-'}")
-            st.write(f"**รูปใกล้:** {near_ok} | **รูปไกล:** {far_ok}")
+            st.write(f"**เวลาส่งงาน:** {latest_row.get('submitted_at') or row.get('submitted_at') or '-'}")
+            st.write(f"**ผู้ส่งงาน:** {latest_row.get('submitted_by') or '-'}")
+            if latest_row:
+                photo_col1, photo_col2 = st.columns(2)
+                with photo_col1:
+                    render_drive_image_preview(latest_row.get("near_photo_url", ""), "รูปใกล้: เห็นกรวย/กระดาษ")
+                with photo_col2:
+                    render_drive_image_preview(latest_row.get("far_photo_url", ""), "รูปไกล: เห็นตำแหน่งโดยรวม")
+                if str(latest_row.get("extra_photo_url", "")).strip():
+                    render_drive_image_preview(latest_row.get("extra_photo_url", ""), "รูปเสริม")
+                if latest_row.get("note"):
+                    st.caption(str(latest_row["note"]))
+            else:
+                st.warning("ยังไม่พบข้อมูลการส่งงาน")
             col1, col2 = st.columns(2)
             if col1.button("ยืนยันงานเสร็จ", key=f"admin_confirm_{request_id}", type="primary", use_container_width=True):
                 lock_key = f"confirm_{request_id}"

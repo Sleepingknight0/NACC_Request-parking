@@ -11,6 +11,8 @@ from modules.constants import (
     REQUEST_STATUS_LABELS,
     WORKSHEET_HEADER_LABELS,
 )
+from modules.storage import is_drive_url as _storage_is_drive_url
+from modules.storage import is_local_upload_url as _storage_is_local_upload_url
 
 
 THEME_OPTIONS = ("day", "night")
@@ -775,10 +777,11 @@ def _display_value(column: str, value, status_kind: str = "request") -> str:
 
 
 def is_local_upload_url(url: str | None) -> bool:
-    text = str(url or "").strip()
-    if not text:
-        return False
-    return text.startswith("uploads/") or text.startswith("uploads\\")
+    return _storage_is_local_upload_url(url)
+
+
+def is_drive_url(url: str | None) -> bool:
+    return _storage_is_drive_url(url)
 
 
 def safe_file_link(url: str | None, label: str = "เปิดไฟล์") -> None:
@@ -787,7 +790,7 @@ def safe_file_link(url: str | None, label: str = "เปิดไฟล์") -> 
         st.caption("ไม่มีไฟล์แนบ")
         return
     if is_local_upload_url(text):
-        st.warning("ไฟล์นี้อยู่ในพื้นที่ชั่วคราวของแอป ยังไม่ใช่ลิงก์ถาวร")
+        st.warning("ไฟล์นี้เป็นลิงก์ชั่วคราวจากระบบเดิม ยังไม่สามารถแสดงในเว็บได้ ต้องอัปโหลดใหม่ไปยัง Google Drive")
         st.caption(text)
         return
     st.link_button(label, text, use_container_width=True)

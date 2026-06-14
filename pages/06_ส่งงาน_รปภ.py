@@ -142,9 +142,10 @@ if submitted:
         else:
             try:
                 with st.spinner("กำลังส่งงาน... กรุณารอสักครู่"):
-                    near_meta = upload_file(near_photo, "guard_submissions", f"{request_id}_near")
-                    far_meta = upload_file(far_photo, "guard_submissions", f"{request_id}_far")
-                    extra_meta = upload_file(extra_photo, "guard_submissions", f"{request_id}_extra") if extra_photo else None
+                    book_prefix = package.get("book_no") or request_id
+                    near_meta = upload_file(near_photo, "guard_submissions", f"guard_{book_prefix}_near")
+                    far_meta = upload_file(far_photo, "guard_submissions", f"guard_{book_prefix}_far")
+                    extra_meta = upload_file(extra_photo, "guard_submissions", f"guard_{book_prefix}_extra") if extra_photo else None
                     submit_guard_package(
                         request_id=request_id,
                         near_photo_meta=near_meta,

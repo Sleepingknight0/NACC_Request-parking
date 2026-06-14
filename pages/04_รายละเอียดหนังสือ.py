@@ -6,6 +6,7 @@ import streamlit as st
 from modules.auth import ROLE_ADMIN, ROLE_OFFICER, get_current_role, require_role
 from modules.constants import GUARD_TASK_STATUS_LABELS, GUARD_TASK_STATUSES
 from modules.db import cancel_request, cancel_request_date, cancel_vehicle, mark_guard_package_done, set_guard_package_status
+from modules.drive_preview import render_drive_image_preview
 from modules.guard_packages import build_guard_packages, get_guard_package, summarize_dates
 from modules.locks import begin_action_lock, end_action_lock
 from modules.pdf_generator import build_parking_pdf
@@ -175,13 +176,13 @@ with st.expander("รูปส่งงาน"):
     else:
         for _, row in request_submissions.sort_values("submitted_at", ascending=False).iterrows():
             st.write(f"**ส่งเมื่อ:** {row['submitted_at']} | **ผู้ส่ง:** {row['submitted_by'] or '-'}")
-            link_col1, link_col2, link_col3 = st.columns(3)
+            link_col1, link_col2 = st.columns(2)
             with link_col1:
-                safe_file_link(row.get("near_photo_url"), "รูปใกล้")
+                render_drive_image_preview(row.get("near_photo_url"), "รูปใกล้: เห็นกรวย/กระดาษ")
             with link_col2:
-                safe_file_link(row.get("far_photo_url"), "รูปไกล")
-            with link_col3:
-                safe_file_link(row.get("extra_photo_url"), "รูปเสริม")
+                render_drive_image_preview(row.get("far_photo_url"), "รูปไกล: เห็นตำแหน่งโดยรวม")
+            if str(row.get("extra_photo_url", "")).strip():
+                render_drive_image_preview(row.get("extra_photo_url"), "รูปเสริม")
             if row.get("note"):
                 st.caption(row["note"])
 
