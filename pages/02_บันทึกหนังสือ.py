@@ -148,7 +148,7 @@ if submitted:
                 st.error(error)
         else:
             with st.spinner("กำลังบันทึกข้อมูล... กรุณารอสักครู่"):
-                file_meta = upload_file(book_file, "book_files", f"book_{book_no}") if book_file else None
+                file_meta = upload_file(book_file, "book_files", f"book_{book_no}") if book_file is not None else None
                 request_id = create_request(
                     book_no=book_no,
                     book_date=to_iso_date(book_date) if book_date else "",

@@ -145,7 +145,7 @@ if submitted:
                     book_prefix = package.get("book_no") or request_id
                     near_meta = upload_file(near_photo, "guard_submissions", f"guard_{book_prefix}_near")
                     far_meta = upload_file(far_photo, "guard_submissions", f"guard_{book_prefix}_far")
-                    extra_meta = upload_file(extra_photo, "guard_submissions", f"guard_{book_prefix}_extra") if extra_photo else None
+                    extra_meta = upload_file(extra_photo, "guard_submissions", f"guard_{book_prefix}_extra") if extra_photo is not None else None
                     submit_guard_package(
                         request_id=request_id,
                         near_photo_meta=near_meta,
