@@ -8,7 +8,7 @@ from modules.constants import (
     WORKSHEET_SCHEMAS,
     sheet_title_for,
 )
-from modules.sheets import initialize_storage, read_sheet
+from modules.sheets import initialize_storage, read_sheet, write_sheet
 from modules.ui import inject_global_css, render_dataframe, render_page_title
 
 
@@ -17,6 +17,11 @@ inject_global_css()
 render_page_title("ตั้งค่า", "ตรวจฐานข้อมูลและข้อมูลอ้างอิงที่ใช้ในระบบ")
 
 initialize_storage()
+
+if st.button("ปรับฐานข้อมูลให้เป็นภาษาไทย", type="primary"):
+    for worksheet in WORKSHEET_SCHEMAS:
+        write_sheet(worksheet, read_sheet(worksheet))
+    st.success("ปรับหัวตาราง สถานะ และค่าใช่/ไม่ใช่ในฐานข้อมูลหลักเป็นภาษาไทยแล้ว")
 
 st.subheader("พจนานุกรมข้อมูล")
 for name, columns in WORKSHEET_SCHEMAS.items():
