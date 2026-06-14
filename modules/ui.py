@@ -4,7 +4,11 @@ import html
 
 import streamlit as st
 
-from modules.constants import GUARD_TASK_STATUS_LABELS, REQUEST_STATUS_LABELS
+from modules.constants import (
+    GUARD_TASK_STATUS_LABELS,
+    REQUEST_STATUS_LABELS,
+    WORKSHEET_HEADER_LABELS,
+)
 
 
 THEME_OPTIONS = ("day", "night")
@@ -273,6 +277,99 @@ def inject_global_css() -> None:
             box-shadow: var(--shadow);
         }
 
+        .nacc-hero {
+            background:
+                linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
+            border: 1px solid var(--border);
+            border-left: 7px solid var(--primary);
+            border-radius: 10px;
+            padding: 22px 24px;
+            margin: 2px 0 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .nacc-hero h1 {
+            border-left: 0;
+            padding-left: 0;
+            margin: 0 0 8px;
+        }
+
+        .nacc-hero p {
+            color: var(--muted);
+            margin: 0;
+            font-size: 1rem;
+            line-height: 1.55;
+        }
+
+        .nacc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin: 12px 0 20px;
+        }
+
+        .nacc-record-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 5px solid var(--primary);
+            border-radius: 8px;
+            padding: 14px 15px;
+            box-shadow: var(--shadow);
+            min-height: 118px;
+        }
+
+        .nacc-record-card-title {
+            color: var(--text);
+            font-weight: 850;
+            font-size: 1rem;
+            line-height: 1.35;
+            margin-bottom: 8px;
+            overflow-wrap: anywhere;
+        }
+
+        .nacc-record-card-meta {
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.55;
+        }
+
+        .nacc-action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 10px;
+            margin: 14px 0 22px;
+        }
+
+        .nacc-action-card {
+            display: block;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-top: 4px solid var(--primary);
+            border-radius: 8px;
+            padding: 14px;
+            text-decoration: none !important;
+            color: var(--text) !important;
+            box-shadow: var(--shadow);
+        }
+
+        .nacc-action-card strong {
+            display: block;
+            color: var(--primary);
+            font-size: 1rem;
+            margin-bottom: 4px;
+        }
+
+        .nacc-action-card span {
+            color: var(--muted);
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
+
+        .nacc-action-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+
         .nacc-muted {
             color: var(--muted);
             font-size: 0.92rem;
@@ -469,8 +566,9 @@ def inject_global_css() -> None:
         }
 
         .nacc-table th {
-            background: var(--surface);
+            background: var(--primary-soft);
             font-weight: 800;
+            color: var(--primary);
         }
 
         .nacc-table tr:last-child td {
@@ -504,6 +602,15 @@ def inject_global_css() -> None:
                 height: 30px;
                 font-size: 17px;
             }
+
+            .nacc-hero {
+                padding: 18px 16px;
+                margin-right: 68px;
+            }
+
+            .nacc-record-card {
+                min-height: auto;
+            }
         }
         </style>
         """
@@ -529,9 +636,16 @@ def inject_global_css() -> None:
 
 
 def render_page_title(title: str, subtitle: str | None = None) -> None:
-    st.title(title)
-    if subtitle:
-        st.markdown(f'<div class="nacc-muted">{html.escape(subtitle)}</div>', unsafe_allow_html=True)
+    subtitle_html = f"<p>{html.escape(subtitle)}</p>" if subtitle else ""
+    st.markdown(
+        f"""
+        <section class="nacc-hero">
+            <h1>{html.escape(title)}</h1>
+            {subtitle_html}
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def status_badge(status: str, kind: str = "request") -> str:
@@ -556,7 +670,74 @@ def section_card(title: str, body: str | None = None) -> None:
     st.markdown(f'<div class="nacc-card">{content}</div>', unsafe_allow_html=True)
 
 
-def render_dataframe(df, columns: list[str] | None = None, empty_text: str = "ไม่มีรายการ") -> None:
+def _label_for_column(column: str, worksheet: str | None = None) -> str:
+    if worksheet and worksheet in WORKSHEET_HEADER_LABELS:
+        label = WORKSHEET_HEADER_LABELS[worksheet].get(column)
+        if label:
+            return label
+
+    for labels in WORKSHEET_HEADER_LABELS.values():
+        if column in labels:
+            return labels[column]
+
+    fallback_labels = {
+        "requests": "จำนวนหนังสือ",
+        "parking_dates": "จำนวนวันจอด",
+        "cars": "จำนวนรถ",
+        "active_tasks": "งานที่ยังเปิดอยู่",
+        "source_agency": "สำนัก/หน่วยงาน",
+        "parking_location": "จุดจอด",
+        "status": "สถานะ",
+    }
+    return fallback_labels.get(column, column)
+
+
+def _status_label(value: str, kind: str = "request") -> str:
+    labels = GUARD_TASK_STATUS_LABELS if kind == "guard" else REQUEST_STATUS_LABELS
+    return labels.get(str(value or "").strip(), str(value or "").strip() or "-")
+
+
+def _display_value(column: str, value, status_kind: str = "request") -> str:
+    text = "" if value is None else str(value)
+    if not text or text.lower() == "nan":
+        return "-"
+    if column == "status":
+        return _status_label(text, status_kind)
+    if column == "has_vehicle_plates":
+        return "มี" if text.upper() in {"TRUE", "YES", "1"} else "ไม่มี"
+    if column == "is_final":
+        return "ใช่" if text.upper() in {"TRUE", "YES", "1"} else "ไม่ใช่"
+    return text
+
+
+def to_display_dataframe(
+    df,
+    columns: list[str] | None = None,
+    worksheet: str | None = None,
+    status_kind: str = "request",
+):
+    display_df = df
+    if columns is not None:
+        existing_columns = [column for column in columns if column in df.columns]
+        display_df = df[existing_columns] if existing_columns else df
+
+    display_df = display_df.copy()
+    for column in display_df.columns:
+        display_df[column] = display_df[column].map(lambda value, col=column: _display_value(col, value, status_kind))
+
+    display_df = display_df.rename(
+        columns={column: _label_for_column(column, worksheet) for column in display_df.columns}
+    )
+    return display_df
+
+
+def render_dataframe(
+    df,
+    columns: list[str] | None = None,
+    empty_text: str = "ไม่มีรายการ",
+    worksheet: str | None = None,
+    status_kind: str = "request",
+) -> None:
     display_df = df
     if columns is not None:
         existing_columns = [column for column in columns if column in df.columns]
@@ -565,6 +746,8 @@ def render_dataframe(df, columns: list[str] | None = None, empty_text: str = "�
     if getattr(display_df, "empty", True):
         st.markdown(f'<div class="nacc-empty-state">{html.escape(empty_text)}</div>', unsafe_allow_html=True)
         return
+
+    display_df = to_display_dataframe(display_df, worksheet=worksheet, status_kind=status_kind)
 
     max_rows = 200
     truncated = len(display_df) > max_rows
@@ -588,6 +771,60 @@ def render_dataframe(df, columns: list[str] | None = None, empty_text: str = "�
     {note}
     """
     st.markdown(table, unsafe_allow_html=True)
+
+
+def render_record_cards(
+    df,
+    *,
+    title_field: str,
+    fields: list[str],
+    worksheet: str | None = None,
+    status_kind: str = "request",
+    empty_text: str = "ไม่มีรายการ",
+    max_cards: int = 8,
+) -> None:
+    if getattr(df, "empty", True):
+        st.markdown(f'<div class="nacc-empty-state">{html.escape(empty_text)}</div>', unsafe_allow_html=True)
+        return
+
+    cards = []
+    for row in df.head(max_cards).to_dict(orient="records"):
+        title = _display_value(title_field, row.get(title_field, ""), status_kind)
+        meta_lines = []
+        for field in fields:
+            if field == title_field:
+                continue
+            label = _label_for_column(field, worksheet)
+            value = _display_value(field, row.get(field, ""), status_kind)
+            meta_lines.append(f"{html.escape(label)}: {html.escape(value)}")
+        cards.append(
+            f"""
+            <article class="nacc-record-card">
+                <div class="nacc-record-card-title">{html.escape(title)}</div>
+                <div class="nacc-record-card-meta">{"<br>".join(meta_lines)}</div>
+            </article>
+            """
+        )
+
+    note = ""
+    if len(df) > max_cards:
+        note = f'<div class="nacc-muted">แสดง {max_cards} รายการแรกจากทั้งหมด {len(df)} รายการ</div>'
+
+    st.markdown(f'<div class="nacc-grid">{"".join(cards)}</div>{note}', unsafe_allow_html=True)
+
+
+def render_action_grid(actions: list[tuple[str, str, str]]) -> None:
+    cards = []
+    for label, href, description in actions:
+        cards.append(
+            f"""
+            <a class="nacc-action-card" href="{html.escape(href)}" target="_self">
+                <strong>{html.escape(label)}</strong>
+                <span>{html.escape(description)}</span>
+            </a>
+            """
+        )
+    st.markdown(f'<div class="nacc-action-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
 
 
 def render_key_value_table(rows: list[tuple[str, str]], empty_text: str = "ไม่มีข้อมูล") -> None:

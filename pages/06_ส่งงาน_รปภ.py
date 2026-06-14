@@ -4,13 +4,13 @@ from modules.db import submit_guard_task
 from modules.pdf_generator import build_parking_pdf
 from modules.sheets import get_request_by_id, list_vehicles, read_sheet
 from modules.storage import upload_file
-from modules.ui import inject_global_css, render_page_title
+from modules.ui import inject_global_css, render_key_value_table, render_page_title
 from modules.validators import validate_guard_submission
 
 
 st.set_page_config(page_title="ส่งงาน รปภ.", page_icon="icon.svg", layout="wide")
 inject_global_css()
-render_page_title("ส่งงาน รปภ.", "อัปโหลดรูปใกล้และรูปไกลก่อนส่งงาน")
+render_page_title("ส่งงาน รปภ.", "เลือกงาน ตรวจรายละเอียด แล้วส่งรูปยืนยัน")
 
 tasks = read_sheet("Guard_Tasks")
 open_tasks = tasks[tasks["status"].isin(["pending", "in_progress", "submitted"])] if not tasks.empty else tasks
@@ -25,10 +25,15 @@ if not request:
     st.error("ไม่พบคำขอของงานนี้")
     st.stop()
 
-st.write(f"สำนัก: {request['source_agency']}")
-st.write(f"เลขหนังสือ: {request['book_no']}")
-st.write(f"วันที่: {task['parking_date']}")
-st.write(f"จุดจอด: {request['parking_location']}")
+render_key_value_table(
+    [
+        ("สำนัก/หน่วยงาน", request["source_agency"]),
+        ("เลขหนังสือ", request["book_no"]),
+        ("วันที่ปฏิบัติงาน", task["parking_date"]),
+        ("จุดจอด", request["parking_location"]),
+        ("จำนวนรถ", request["car_count"]),
+    ]
+)
 
 plates = list_vehicles(request["request_id"])["plate_no"].tolist()
 pdf_bytes = build_parking_pdf(
@@ -41,14 +46,7 @@ pdf_bytes = build_parking_pdf(
 )
 st.download_button("ดาวน์โหลด PDF ป้าย", pdf_bytes, f"parking_sign_{task_id}.pdf", "application/pdf")
 
-st.markdown(
-    """
-    กรุณาอัปโหลดรูปอย่างน้อย 2 รูปก่อนส่งงาน
-
-    1. รูปใกล้: เห็นกรวยและกระดาษที่แปะชัดเจน
-    2. รูปไกล: เห็นตำแหน่งสถานที่วางกรวยโดยรวม
-    """
-)
+st.info("อัปโหลด 2 รูป: รูปใกล้ให้เห็นกรวย/กระดาษชัด และรูปไกลให้เห็นบริเวณจอดโดยรวม")
 
 with st.form("guard_submission"):
     near_photo = st.file_uploader("รูปใกล้ *", type=["png", "jpg", "jpeg"])

@@ -15,7 +15,7 @@ from modules.ui import inject_global_css, render_dataframe, render_page_title, r
 
 st.set_page_config(page_title="รายละเอียดหนังสือ", page_icon="icon.svg", layout="wide")
 inject_global_css()
-render_page_title("รายละเอียดหนังสือ", "ตรวจสอบ แก้สถานะ ยกเลิก และดาวน์โหลด PDF")
+render_page_title("รายละเอียดหนังสือ", "ตรวจงานจากข้อมูลสรุปก่อน แล้วเปิดรายละเอียดเมื่อจำเป็น")
 
 requests = read_sheet("Requests")
 if requests.empty:
@@ -28,14 +28,14 @@ if not request:
     st.error("ไม่พบคำขอ")
     st.stop()
 
-col1, col2, col3 = st.columns([2, 1, 1])
+col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
 col1.subheader(request["book_no"])
-col1.write(request["source_agency"])
+col1.caption(request["source_agency"])
 col2.metric("จำนวนรถ", request["car_count"])
-with col3:
+col3.metric("จุดจอด", request["parking_location"])
+with col4:
     render_status(request["status"])
 
-st.write(f"จุดจอด: {request['parking_location']}")
 if request.get("book_file_url"):
     st.link_button("เปิดไฟล์หนังสือ", request["book_file_url"])
 
@@ -44,14 +44,30 @@ vehicles = list_vehicles(request_id, active_only=False)
 active_plates = vehicles[vehicles["status"] == "active"]["plate_no"].tolist() if not vehicles.empty else []
 tasks = list_guard_tasks(request_id)
 
-st.subheader("วันที่จอด")
-render_dataframe(dates)
-
-st.subheader("ทะเบียนรถ")
-render_dataframe(vehicles)
-
-st.subheader("งาน รปภ.")
-render_dataframe(tasks)
+st.subheader("ข้อมูลใช้งาน")
+tab_dates, tab_tasks, tab_plates = st.tabs(["วันที่จอด", "งาน รปภ.", "ทะเบียนรถ"])
+with tab_dates:
+    render_dataframe(
+        dates,
+        ["parking_date", "parking_time", "month_key", "status"],
+        worksheet="Request_Dates",
+        empty_text="ไม่มีวันที่จอด",
+    )
+with tab_tasks:
+    render_dataframe(
+        tasks,
+        ["parking_date", "parking_location", "status", "submitted_at", "completed_at"],
+        worksheet="Guard_Tasks",
+        status_kind="guard",
+        empty_text="ไม่มีงาน รปภ.",
+    )
+with tab_plates:
+    render_dataframe(
+        vehicles,
+        ["plate_no", "vehicle_note", "status"],
+        worksheet="Vehicles",
+        empty_text="ไม่มีทะเบียนรถ",
+    )
 
 if not tasks.empty:
     selected_task = st.selectbox("เลือกงานสำหรับ PDF/ตรวจงาน", tasks["task_id"].tolist())
@@ -78,7 +94,12 @@ if not tasks.empty:
 st.subheader("รูปส่งงาน")
 submissions = list_guard_submissions()
 request_submissions = submissions[submissions["request_id"].astype(str) == request_id] if not submissions.empty else submissions
-render_dataframe(request_submissions)
+render_dataframe(
+    request_submissions,
+    ["submitted_at", "submitted_by", "near_photo_url", "far_photo_url", "extra_photo_url", "note"],
+    worksheet="Guard_Submissions",
+    empty_text="ยังไม่มีการส่งงาน",
+)
 
 with st.expander("ยกเลิกข้อมูล"):
     reason = st.text_area("เหตุผลยกเลิก")

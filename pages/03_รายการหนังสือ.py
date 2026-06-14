@@ -1,21 +1,27 @@
 import pandas as pd
 import streamlit as st
 
+from modules.constants import REQUEST_STATUS_LABELS
 from modules.sheets import read_sheet
-from modules.ui import inject_global_css, render_dataframe, render_page_title
+from modules.ui import inject_global_css, render_dataframe, render_page_title, render_record_cards
 
 
 st.set_page_config(page_title="รายการหนังสือ", page_icon="icon.svg", layout="wide")
 inject_global_css()
-render_page_title("รายการหนังสือ", "ค้นหาและกรองคำขอที่จอดรถ")
+render_page_title("รายการหนังสือ", "ค้นหาคำขอด้วยข้อมูลที่ใช้จริง")
 
 requests = read_sheet("Requests")
 dates = read_sheet("Request_Dates")
 vehicles = read_sheet("Vehicles")
 
-query = st.text_input("ค้นหา", placeholder="request_id, เลขหนังสือ, สำนัก, ทะเบียน")
+query = st.text_input("ค้นหา", placeholder="เลขหนังสือ, รหัสคำขอ, สำนัก/หน่วยงาน หรือทะเบียน")
 col1, col2, col3 = st.columns(3)
-status = col1.selectbox("สถานะ", ["ทั้งหมด", "draft", "pending", "active", "done", "cancelled"])
+status_options = ["ทั้งหมด", "draft", "pending", "active", "done", "cancelled"]
+status = col1.selectbox(
+    "สถานะ",
+    status_options,
+    format_func=lambda value: "ทั้งหมด" if value == "ทั้งหมด" else REQUEST_STATUS_LABELS.get(value, value),
+)
 month = col2.text_input("เดือน", placeholder="YYYY-MM")
 location = col3.text_input("จุดจอด")
 
@@ -38,8 +44,17 @@ if query and not df.empty:
     df = df[mask]
 
 if not df.empty:
-    show_cols = ["request_id", "book_no", "received_date", "source_agency", "car_count", "parking_location", "status", "updated_at"]
-    render_dataframe(df, show_cols)
+    st.subheader("รายการที่พบ")
+    render_record_cards(
+        df,
+        title_field="book_no",
+        fields=["received_date", "source_agency", "car_count", "parking_location", "status"],
+        worksheet="Requests",
+        status_kind="request",
+        max_cards=6,
+    )
+    show_cols = ["book_no", "received_date", "source_agency", "car_count", "parking_location", "status", "updated_at"]
+    render_dataframe(df, show_cols, worksheet="Requests")
     st.download_button("ส่งออก CSV", df.to_csv(index=False).encode("utf-8-sig"), "parking_requests.csv", "text/csv")
 else:
     st.info("ไม่พบรายการ")

@@ -17,14 +17,14 @@ from modules.validators import (
 
 st.set_page_config(page_title="บันทึกหนังสือ", page_icon="icon.svg", layout="wide")
 inject_global_css()
-render_page_title("บันทึกหนังสือ", "สร้างคำขอที่จอดรถพร้อมวันที่จอดและงาน รปภ.")
+render_page_title("บันทึกหนังสือ", "กรอกครั้งเดียว ระบบสร้างวันที่จอดและงาน รปภ. ให้พร้อมติดตาม")
 
 if "plate_count" not in st.session_state:
     st.session_state.plate_count = 1
 
 with st.form("create_request_form", clear_on_submit=False):
-    st.subheader("ข้อมูลหนังสือ")
-    col1, col2 = st.columns(2)
+    st.subheader("1. ข้อมูลหนังสือ")
+    col1, col2 = st.columns([1, 1])
     book_no = col1.text_input("เลขหนังสือ *")
     book_date = col2.date_input("วันที่หนังสือ", value=None)
     received_date = col1.date_input("วันที่รับเรื่อง *")
@@ -34,7 +34,7 @@ with st.form("create_request_form", clear_on_submit=False):
         other_agency = st.text_input("ระบุสำนัก/หน่วยงาน")
     book_file = st.file_uploader("แนบไฟล์หนังสือ", type=["pdf", "png", "jpg", "jpeg"])
 
-    st.subheader("รายละเอียดที่จอด")
+    st.subheader("2. รายละเอียดที่จอด")
     col3, col4 = st.columns(2)
     car_count = col3.number_input("จำนวนรถ *", min_value=1, value=1, step=1)
     selected_location = col4.selectbox("จุดจอด *", PARKING_LOCATIONS)
@@ -66,14 +66,15 @@ with st.form("create_request_form", clear_on_submit=False):
     if parking_dates:
         st.caption("วันที่จอด: " + ", ".join(parking_dates))
 
-    st.subheader("ทะเบียนรถ")
+    st.subheader("3. ทะเบียนและหมายเหตุ")
     has_plates = st.checkbox("มีทะเบียนรถ", value=False)
     plate_text = ""
     if has_plates:
         plate_text = st.text_area("ทะเบียนรถ 1 รายการต่อ 1 บรรทัด", placeholder="กข 1234\nขค 5678")
 
-    note = st.text_area("หมายเหตุ")
-    created_by = st.text_input("ผู้บันทึก", value="เจ้าหน้าที่")
+    note = st.text_area("หมายเหตุ", placeholder="กรอกเฉพาะข้อมูลที่จำเป็นต่อการประสานงาน")
+    with st.expander("ข้อมูลผู้บันทึก"):
+        created_by = st.text_input("ผู้บันทึก", value="เจ้าหน้าที่")
     submitted = st.form_submit_button("บันทึกคำขอ", type="primary")
 
 if submitted:
