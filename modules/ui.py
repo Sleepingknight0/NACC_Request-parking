@@ -13,20 +13,20 @@ THEME_QUERY_KEYS = {"day": "day", "night": "night"}
 
 THEMES = {
     "day": {
-        "bg": "#FFFFFF",
+        "bg": "#FEFBFF",
         "surface": "#FFFFFF",
-        "surface_2": "#F7F2FB",
+        "surface_2": "#F5ECF8",
         "surface_3": "#FFFFFF",
         "text": "#1A1020",
         "muted": "#66566F",
-        "border": "#E7DDF0",
+        "border": "#E2D2EA",
         "primary": "#61116C",
         "primary_hover": "#4B0D55",
         "on_primary": "#FFFFFF",
-        "primary_soft": "#F3EAF7",
-        "sidebar": "#FFFFFF",
+        "primary_soft": "#EFE0F4",
+        "sidebar": "#F7F0FA",
         "input": "#FFFFFF",
-        "shadow": "0 1px 3px rgba(97, 17, 108, 0.10)",
+        "shadow": "0 4px 14px rgba(97, 17, 108, 0.08)",
     },
     "night": {
         "bg": "#140718",
@@ -42,7 +42,7 @@ THEMES = {
         "primary_soft": "#341840",
         "sidebar": "#18091D",
         "input": "#24102B",
-        "shadow": "0 1px 3px rgba(0, 0, 0, 0.34)",
+        "shadow": "0 4px 16px rgba(0, 0, 0, 0.32)",
     },
 }
 
@@ -140,6 +140,18 @@ def inject_global_css() -> None:
             letter-spacing: 0;
         }
 
+        h1 {
+            border-left: 6px solid var(--primary);
+            padding-left: 14px;
+            line-height: 1.08;
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+
+        h2, h3 {
+            color: var(--primary);
+        }
+
         p, label, span, div, .stMarkdown {
             color: var(--text);
         }
@@ -191,6 +203,10 @@ def inject_global_css() -> None:
             border-right: 1px solid var(--border);
         }
 
+        section[data-testid="stSidebar"] > div {
+            background: var(--sidebar);
+        }
+
         section[data-testid="stSidebar"] * {
             color: var(--text);
         }
@@ -203,8 +219,13 @@ def inject_global_css() -> None:
 
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover,
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] {
-            background: var(--primary-soft) !important;
-            color: var(--primary) !important;
+            background: var(--primary) !important;
+            color: var(--on-primary) !important;
+        }
+
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover *,
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="page"] * {
+            color: var(--on-primary) !important;
         }
 
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul li:first-child a[data-testid="stSidebarNavLink"] > * {
@@ -218,9 +239,15 @@ def inject_global_css() -> None:
             color: var(--text);
         }
 
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul li:first-child a:hover::after,
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] ul li:first-child a[aria-current="page"]::after {
+            color: var(--on-primary);
+        }
+
         div[data-testid="stMetric"] {
             background: var(--surface);
             border: 1px solid var(--border);
+            border-top: 4px solid var(--primary);
             padding: 14px;
             border-radius: 8px;
             box-shadow: var(--shadow);
@@ -239,6 +266,7 @@ def inject_global_css() -> None:
         .nacc-card {
             background: var(--surface);
             border: 1px solid var(--border);
+            border-top: 4px solid var(--primary);
             border-radius: 8px;
             padding: 16px;
             margin-bottom: 14px;
@@ -285,6 +313,27 @@ def inject_global_css() -> None:
             color: var(--text) !important;
         }
 
+        div[data-testid="stForm"],
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            border-top: 4px solid var(--primary) !important;
+            box-shadow: var(--shadow);
+        }
+
+        div[data-testid="stAlert"] {
+            background: var(--surface-2) !important;
+            border: 1px solid var(--border) !important;
+            border-left: 4px solid var(--primary) !important;
+            border-radius: 8px !important;
+            box-shadow: var(--shadow);
+        }
+
+        div[data-testid="stAlert"] > div,
+        div[data-testid="stAlert"] [role="alert"],
+        div[data-testid="stAlert"] [data-testid="stMarkdownContainer"] {
+            background: transparent !important;
+            color: var(--text) !important;
+        }
+
         input, textarea,
         div[data-baseweb="select"] > div,
         div[data-baseweb="base-input"],
@@ -310,6 +359,21 @@ def inject_global_css() -> None:
             background: var(--primary-soft) !important;
             color: var(--text) !important;
             border-color: var(--border) !important;
+        }
+
+        div[data-testid="stFileUploader"] button,
+        div[data-testid="stDownloadButton"] button {
+            background: var(--primary) !important;
+            color: var(--on-primary) !important;
+            border-color: var(--primary) !important;
+        }
+
+        div[data-testid="stRadio"] label,
+        div[role="radiogroup"] label {
+            background: var(--surface-2) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 8px !important;
+            padding: 6px 10px !important;
         }
 
         div[data-testid="stFileUploader"] small,
@@ -365,8 +429,9 @@ def inject_global_css() -> None:
         }
 
         .nacc-empty-state {
-            background: var(--surface);
+            background: var(--surface-2);
             border: 1px solid var(--border);
+            border-left: 4px solid var(--primary);
             border-radius: 8px;
             color: var(--muted);
             padding: 14px 16px;
@@ -422,6 +487,13 @@ def inject_global_css() -> None:
         }
 
         @media (max-width: 760px) {
+            h1 {
+                font-size: 2rem !important;
+                line-height: 1.14;
+                border-left-width: 5px;
+                padding-left: 10px;
+            }
+
             .theme-switcher {
                 top: 58px;
                 right: 16px;
