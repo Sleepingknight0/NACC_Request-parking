@@ -1,20 +1,18 @@
 # Bugfix Report
 
 ## Summary
-Google Drive-backed storage and in-app Drive image preview are implemented and deployed. The provided production folders are configured and readable, but real upload QA is blocked by Google Drive service-account storage quota rules for normal My Drive folders.
+Google Drive storage and in-app Drive image preview are implemented. Production now detects the current Drive configuration before writing rows: both provided upload folders are readable, but still located in normal My Drive, so service-account upload is blocked with a clear Thai message and no partial request/submission row is written.
 
 ## Bugs Found
 | Bug | Root cause | Fix summary | Verification |
 |---|---|---|---|
-| Uploaded files were saved to local `uploads/...` paths | `modules/storage.py` only had a local filesystem implementation | Added Google Drive backend, service-account upload, configurable sharing, and compatible metadata return shape | Unit tests; production Settings shows `google_drive` backend |
-| Production had no Drive folder config | No folder IDs were configured in app/secrets | Added provided folder IDs as defaults for `book_files` and `guard_submissions`, while preserving env/secrets override | Production Settings shows both folders configured |
-| Drive diagnostics only checked read access | Settings could not prove uploads would work | Added service-account email display and write-access health check | Production write test exposed exact API blocker |
-| Upload page showed only generic Drive failure | Drive exceptions were caught and replaced with `อัปโหลดไฟล์ไป Google Drive ไม่สำเร็จ` | Added Drive error classifier for quota, permission, missing folder, and API-disabled cases | Production officer upload shows Shared Drive/OAuth remediation |
-| Valid uploaded files could be skipped | Page code used truthiness checks (`if book_file`) instead of explicit `is not None` | Updated book and extra-photo upload guards | Regression tests in `tests/test_upload_pages.py` |
-| Reviewers had to open Drive manually to inspect guard photos | UI rendered links/flags, not image bytes | Added `modules/drive_preview.py` to fetch Drive bytes by service account and render `st.image` previews | Parser tests and local compile/smoke checks |
-| Drive URLs needed robust parsing | Stored URLs may use `/file/d`, `open?id`, `uc?id`, or raw IDs | Added parser with tests and local-path rejection | `tests/test_drive_preview.py` |
-| Existing local upload paths looked like durable links | `safe_file_link()` treated non-empty URLs as normal links | Added local upload warning and Drive URL classifier | Existing production local rows counted/warned in Settings |
-| Upload filenames were not traceable to business records | Call sites used generic prefixes or internal request IDs | Book uploads now use `book_{book_no}`; guard photos use `guard_{book_no}_{near|far|extra}` | Code review and unit tests for sanitization |
+| Uploads used local `uploads/...` paths | Storage module only had local filesystem upload | Added Google Drive backend with metadata return shape used by Sheets | Unit tests and production Settings show `google_drive` backend |
+| Drive folders were readable but not upload-ready | Normal My Drive folders shared to a service account can be read, but service accounts cannot create owned files there | Added folder preflight using `driveId` and `canAddChildren`; Settings now shows `location` and `upload_ready` | Production Settings shows both folders as `My Drive` and `ยังไม่พร้อม` |
+| Upload failure message was too generic | Drive API exceptions were collapsed into one message | Added error mapping for quota, permissions, missing folders, API disabled, and My Drive folder config | Production officer upload shows the exact Shared Drive fix |
+| Streamlit Cloud kept stale imported storage code | Page scripts reloaded while `modules.storage` stayed cached in the running process | Reloaded `modules.storage` before importing storage functions on upload/settings pages | Production changed from quota API error to My Drive preflight error |
+| Uploaded file objects could be skipped | Streamlit `UploadedFile` truthiness was used instead of `is not None` | Updated upload guards for book files and extra photos | Regression tests |
+| Reviewers could only open Drive links manually | UI did not download Drive bytes for previews | Added `modules/drive_preview.py` and embedded image preview UI | Parser tests and page smoke checks |
+| Legacy local file links looked durable | Old `uploads/...` values were rendered as links | Added local-path warning and Settings audit count | Production Settings local-file audit renders safely |
 
 ## Files Changed
 - `README.md`
@@ -34,33 +32,30 @@ Google Drive-backed storage and in-app Drive image preview are implemented and d
 - `BUGFIX_REPORT.md`
 
 ## Automated Verification
-- `python -m pytest -q`: 65 passed
-- `python -X utf8 -m compileall app.py streamlit_app.py modules pages tests`: passed
-- Local Streamlit smoke test: role selector, admin login, Settings storage-health section loaded without runtime error
+- `python -m pytest -q`: 67 passed
+- Previous compile smoke check passed: `python -X utf8 -m compileall app.py streamlit_app.py modules pages tests`
 
 ## Production Verification
-- Production app loaded to role selector with no raw traceback.
+- Date/time: 2026-06-14 22:52 +07
+- Commit tested: `3a921ee`
+- Production app loaded to the role selector with no raw traceback.
 - Admin PIN `1234` entered admin mode.
-- Settings page showed:
-  - `file_storage_backend = google_drive`
-  - `book_files = ตั้งค่าแล้ว`
-  - `guard_submissions = ตั้งค่าแล้ว`
-  - service account email
-  - local upload audit counts
-- Drive read check passed for:
-  - `Data base หนังสือผู้ขอที่จอด`
-  - `Data base รปภส่งงาน`
-- Drive write check failed with Google API error:
-  - `Service Accounts do not have storage quota`
-  - `reason: storageQuotaExceeded`
-- Officer upload form now shows:
-  - `Service account ไม่มีพื้นที่เก็บไฟล์บน My Drive ต้องย้ายโฟลเดอร์ปลายทางไป Google Shared Drive หรือใช้ OAuth/domain-wide delegation`
-- QA rows created during production testing were cancelled with audit.
+- Settings showed service account: `nacc-parking-streamlit@nacc-parking-streamlit.iam.gserviceaccount.com`.
+- Drive read check passed for both configured folders.
+- Drive readiness check showed:
+  - `book_files`: `location = My Drive`, `upload_ready = ยังไม่พร้อม`
+  - `guard_submissions`: `location = My Drive`, `upload_ready = ยังไม่พร้อม`
+- Drive write check was blocked before upload with:
+  - `โฟลเดอร์ Google Drive ปลายทางยังอยู่ใน My Drive service account อัปโหลดไฟล์บน production ไม่ได้เพราะไม่มีพื้นที่เก็บไฟล์ กรุณาสร้างหรือย้ายโฟลเดอร์ไป Google Shared Drive แล้วตั้งค่า folder ID ใหม่`
+- Officer book-file upload showed the same preflight message.
+- Google Sheets search for `QA-PROD-DRIVE-ERR-20260614-VERIFY`: `matched_row_count = 0`, confirming no partial request row was written.
 
-## Production Blocker
-The provided folders appear to be normal My Drive folders. Service accounts can read shared My Drive folders but cannot upload files there because service accounts have no Drive storage quota.
+## Production Blocker And Fix Plan
+The current folder IDs still have no Shared Drive `driveId`; they are normal My Drive folders. Sharing a My Drive folder with the service account is not enough for uploads.
 
-Required fix:
-- Move or recreate both upload folders in a Google Shared Drive, or switch the app to OAuth/domain-wide delegation.
-- Grant `nacc-parking-streamlit@nacc-parking-streamlit.iam.gserviceaccount.com` write access.
-- Rerun production Drive write check, officer upload, guard photo upload, admin preview, and request detail preview.
+Fix plan:
+1. Create or move the upload folders into a Google Shared Drive.
+2. Grant `nacc-parking-streamlit@nacc-parking-streamlit.iam.gserviceaccount.com` Contributor or Content manager access.
+3. Update Streamlit Secrets with the new Shared Drive folder IDs, or provide the new folder links so the defaults can be changed.
+4. Rerun Settings Drive connection and upload checks.
+5. Rerun officer book upload, guard near/far upload, admin photo preview, request detail preview, and QA cleanup.
