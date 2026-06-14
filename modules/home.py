@@ -12,6 +12,9 @@ from modules.sheets import initialize_storage, read_sheet
 from modules.ui import inject_global_css, render_action_grid, render_page_title, safe_download_filename, status_badge
 
 
+GUARD_EMPTY_HOME_MESSAGE = "ยังไม่มีงาน รปภ."
+
+
 def _metric_cards(values: list[tuple[str, int]]) -> None:
     cols = st.columns(min(len(values), 4) or 1)
     for index, (label, value) in enumerate(values):
@@ -200,6 +203,8 @@ def _render_admin_submitted(packages, vehicles, submissions) -> None:
 def _render_guard_home(packages, vehicles) -> None:
     render_page_title("งาน รปภ.", "รับงาน ดาวน์โหลดป้าย และส่งรูปงาน")
     groups = _split_packages(packages)
+    if packages.empty:
+        st.info(GUARD_EMPTY_HOME_MESSAGE)
     _metric_cards(
         [
             ("งานเปิดให้ทำ", len(groups["open"])),

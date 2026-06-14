@@ -54,7 +54,24 @@ def set_current_role(role: str) -> None:
 
 
 def clear_role() -> None:
-    st.session_state.pop("user_role", None)
+    explicit_keys = {
+        "user_role",
+        "selected_request_id",
+        "selected_guard_request_id",
+        "selected_task_id",
+        "selected_package_id",
+        "last_created_request",
+        "admin_pin_input",
+    }
+    for key in list(st.session_state.keys()):
+        if key in explicit_keys or str(key).startswith("selected_"):
+            st.session_state.pop(key, None)
+    for key in ["role", "request_id", "task_id", "selected_request_id", "selected_guard_request_id"]:
+        try:
+            if key in st.query_params:
+                del st.query_params[key]
+        except Exception:
+            continue
 
 
 def _switch_home() -> None:
