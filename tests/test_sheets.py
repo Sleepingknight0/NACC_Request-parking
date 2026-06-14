@@ -1,4 +1,8 @@
-from modules.sheets import _normalize_private_key, _sheet_range, _spreadsheet_id_from_url
+from modules.sheets import (
+    _normalize_private_key,
+    _sheet_range,
+    _spreadsheet_id_from_url,
+)
 
 
 def test_normalize_private_key_converts_escaped_newlines():
@@ -36,3 +40,12 @@ def test_spreadsheet_id_from_url_accepts_url_or_raw_id():
 
 def test_sheet_range_quotes_thai_sheet_names():
     assert _sheet_range("คำขอ", "A1") == "%27%E0%B8%84%E0%B8%B3%E0%B8%82%E0%B8%AD%27%21A1"
+
+
+def test_google_sheet_rows_are_padded_to_header_width():
+    headers = ["a", "b", "c"]
+    rows = [["1"], ["2", "3", "4", "extra"]]
+
+    normalized_rows = [(row + [""] * len(headers))[: len(headers)] for row in rows]
+
+    assert normalized_rows == [["1", "", ""], ["2", "3", "4"]]

@@ -246,7 +246,10 @@ def _read_gsheet_with_google_api(sheet_title: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     headers = values[0]
-    rows = values[1:]
+    rows = [
+        (row + [""] * len(headers))[: len(headers)]
+        for row in values[1:]
+    ]
     return pd.DataFrame(rows, columns=headers)
 
 
