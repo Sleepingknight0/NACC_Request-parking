@@ -33,3 +33,18 @@ def test_pdf_with_three_plates_stays_one_work_package_page():
     )
 
     assert _page_count(pdf_bytes) == 1
+
+
+def test_pdf_multi_day_date_summary_stays_one_sign():
+    pdf_bytes = build_parking_pdf(
+        agency="สำนักบริหารงานกลาง",
+        car_count=1,
+        plates=[],
+        parking_location="หน้าอาคาร 3",
+        date_summary="2026-06-13 ถึง 2026-06-15 (3 วัน)",
+        parking_time="08:30-16:30",
+        book_no="QA-PROD-PDF",
+    )
+
+    assert pdf_bytes.startswith(b"%PDF")
+    assert _page_count(pdf_bytes) == 1

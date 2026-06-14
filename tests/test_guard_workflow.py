@@ -61,7 +61,7 @@ def test_accept_guard_package_marks_in_progress_once(tmp_path, monkeypatch):
         source_agency="สำนักบริหารงานกลาง",
         car_count=1,
         parking_location="หน้าอาคาร 3",
-        parking_dates=["2026-06-20", "2026-06-21"],
+        parking_dates=["2026-06-14", "2026-06-15"],
         parking_time="08:30-16:30",
         plates=[],
         created_by="tester",

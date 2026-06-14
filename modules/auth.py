@@ -44,14 +44,6 @@ def get_current_role() -> str | None:
     if role in ROLE_LABELS:
         return str(role)
 
-    # Developer/debug fallback only. Normal navigation does not create role URLs.
-    query_role = st.query_params.get("role", "")
-    if isinstance(query_role, list):
-        query_role = query_role[0] if query_role else ""
-    if query_role in ROLE_LABELS:
-        st.session_state["user_role"] = query_role
-        return str(query_role)
-
     return None
 
 
@@ -136,6 +128,8 @@ def require_role(allowed_roles: list[str], page_key: str | None = None) -> None:
     role = get_current_role()
     render_role_badge()
     if not role:
+        if page_key and page_key != "home":
+            st.warning("หน้านี้ไม่เปิดให้บทบาทของคุณใช้งาน")
         render_role_selector(redirect_home_on_select=True)
         st.stop()
 

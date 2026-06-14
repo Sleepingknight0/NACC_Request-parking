@@ -22,6 +22,7 @@ from modules.ui import (
     render_dataframe,
     render_key_value_table,
     render_page_title,
+    safe_download_filename,
     render_system_info_expander,
     safe_file_link,
     status_badge,
@@ -117,6 +118,7 @@ render_key_value_table(
         ("วันที่จอด", dates_text),
         ("เวลาที่จอด", parking_time or "-"),
         ("ทะเบียนรถ", ", ".join(active_plates) if active_plates else "ไม่มีทะเบียน"),
+        ("สถานะ", GUARD_TASK_STATUS_LABELS.get(str(package.get("status", request.get("status", ""))), str(package.get("status", request.get("status", ""))))),
     ]
 )
 
@@ -137,7 +139,7 @@ with action_col2:
     st.download_button(
         "ดาวน์โหลด PDF ป้าย",
         pdf_bytes,
-        file_name=f"parking_sign_{request['book_no']}.pdf",
+        file_name=safe_download_filename("parking_sign", request["book_no"], "pdf"),
         mime="application/pdf",
         use_container_width=True,
     )
@@ -183,6 +185,16 @@ with st.expander("รูปส่งงาน"):
             if row.get("note"):
                 st.caption(row["note"])
 
+audit = read_sheet("Audit_Log")
+request_audit = audit[audit["target_id"].astype(str).isin([request_id] + tasks.get("task_id", pd.Series(dtype=str)).astype(str).tolist())] if not audit.empty else audit
+with st.expander("ประวัติ"):
+    render_dataframe(
+        request_audit.sort_values("created_at", ascending=False) if not request_audit.empty else request_audit,
+        ["created_at", "action", "target_table", "user"],
+        worksheet="Audit_Log",
+        empty_text="ยังไม่มีประวัติ",
+    )
+
 if get_current_role() == ROLE_ADMIN:
     st.subheader("การดำเนินการแอดมิน")
     package_status = str(package.get("status", request.get("status", "")))
@@ -190,12 +202,14 @@ if get_current_role() == ROLE_ADMIN:
         st.info("งานนี้ปิดแล้ว")
     elif package_status == "cancelled":
         st.info("คำขอนี้ถูกยกเลิกแล้ว")
-    elif st.button("ปิดงานหลังตรวจรูปแล้ว", type="primary", use_container_width=True):
+    elif package_status != "submitted":
+        st.info("ยืนยันงานเสร็จจะแสดงเมื่องานอยู่สถานะส่งงานแล้วเท่านั้น หากต้องแก้สถานะให้ใช้จัดการสถานะ")
+    elif st.button("ยืนยันงานเสร็จ", type="primary", use_container_width=True):
         if not begin_action_lock(f"done_{request_id}"):
-            st.warning("ระบบกำลังปิดงาน กรุณารอสักครู่")
+            st.warning("ระบบกำลังดำเนินการอยู่ กรุณารอสักครู่")
             st.stop()
         try:
-            with st.spinner("กำลังปิดงาน..."):
+            with st.spinner("กำลังยืนยันงาน..."):
                 mark_guard_package_done(request_id, user="แอดมิน")
             st.session_state["flash_success"] = "ปิดงานแล้ว"
             st.rerun()
@@ -295,16 +309,6 @@ if get_current_role() == ROLE_ADMIN:
                             st.rerun()
                         finally:
                             end_action_lock(f"cancel_vehicle_{vehicle_id}")
-
-    with st.expander("ประวัติระบบ"):
-        audit = read_sheet("Audit_Log")
-        request_audit = audit[audit["target_id"].astype(str).isin([request_id] + tasks.get("task_id", pd.Series(dtype=str)).astype(str).tolist())] if not audit.empty else audit
-        render_dataframe(
-            request_audit.sort_values("created_at", ascending=False) if not request_audit.empty else request_audit,
-            ["created_at", "action", "target_table", "user"],
-            worksheet="Audit_Log",
-            empty_text="ยังไม่มีประวัติ",
-        )
 
     system_row = {**request, **package}
     render_system_info_expander(system_row)

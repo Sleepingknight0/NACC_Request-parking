@@ -10,7 +10,7 @@ from modules.locks import begin_action_lock, end_action_lock
 from modules.pdf_generator import build_parking_pdf
 from modules.sheets import read_sheet
 from modules.storage import upload_file
-from modules.ui import inject_global_css, render_key_value_table, render_page_title, status_badge
+from modules.ui import inject_global_css, render_key_value_table, render_page_title, safe_download_filename, status_badge
 from modules.validators import validate_guard_submission
 
 
@@ -94,7 +94,7 @@ pdf_bytes = build_parking_pdf(
 st.download_button(
     "ดาวน์โหลด PDF ป้าย",
     pdf_bytes,
-    f"parking_sign_{package['book_no']}.pdf",
+    safe_download_filename("parking_sign", package["book_no"], "pdf"),
     "application/pdf",
     use_container_width=True,
 )

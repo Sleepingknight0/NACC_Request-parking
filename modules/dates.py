@@ -24,8 +24,10 @@ def _parse_date(value) -> date:
     if not text:
         raise ValueError("date value is required")
 
-    if re.fullmatch(r"\d{4}-\d{1,2}-\d{1,2}", text):
-        return _normalize_buddhist_year(datetime.strptime(text, "%Y-%m-%d").date())
+    iso_like = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T].*)?", text)
+    if iso_like:
+        year, month, day = [int(part) for part in iso_like.groups()]
+        return _normalize_buddhist_year(date(year, month, day))
 
     parsed = parser.parse(text, dayfirst=True, fuzzy=False).date()
     return _normalize_buddhist_year(parsed)

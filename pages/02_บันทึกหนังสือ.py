@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from modules.auth import ROLE_ADMIN, ROLE_OFFICER, require_role
+from modules.auth import ROLE_ADMIN, ROLE_OFFICER, get_current_role, require_role
 from modules.constants import NACC_DEPARTMENTS, PARKING_LOCATIONS
 from modules.dates import expand_date_range, parse_multiline_dates, to_iso_date
 from modules.db import create_request
@@ -111,14 +111,19 @@ if last_created:
     if col_success2.button("บันทึกคำขอใหม่", use_container_width=True):
         st.session_state.pop("last_created_request", None)
         st.rerun()
-    if col_success3.button("ดูประวัติคำขอ", use_container_width=True):
-        st.switch_page("pages/03_รายการหนังสือ.py")
+    if col_success3.button("ไปงาน รปภ.", use_container_width=True):
+        if get_current_role() == ROLE_ADMIN:
+            st.session_state["selected_guard_request_id"] = last_created["request_id"]
+            st.switch_page("pages/05_งาน_รปภ.py")
+        else:
+            st.session_state["selected_request_id"] = last_created["request_id"]
+            st.switch_page("pages/04_รายละเอียดหนังสือ.py")
 
 submitted = st.button("บันทึกคำขอ", type="primary", use_container_width=True)
 
 if submitted:
     if not begin_action_lock("create_request"):
-        st.warning("ระบบกำลังบันทึกข้อมูลอยู่ กรุณารอสักครู่")
+        st.warning("ระบบกำลังดำเนินการอยู่ กรุณารอสักครู่")
         st.stop()
 
     try:

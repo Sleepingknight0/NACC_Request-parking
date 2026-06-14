@@ -8,7 +8,7 @@ from modules.constants import REQUEST_STATUS_LABELS
 from modules.guard_packages import summarize_dates
 from modules.pdf_generator import build_parking_pdf
 from modules.sheets import read_sheet
-from modules.ui import inject_global_css, render_dataframe, render_page_title, status_badge
+from modules.ui import inject_global_css, render_dataframe, render_page_title, safe_download_filename, status_badge
 
 
 st.set_page_config(page_title="รายการหนังสือ", page_icon="icon.svg", layout="wide")
@@ -107,7 +107,7 @@ for _, row in df.sort_values("updated_at", ascending=False).head(30).iterrows():
         action_col2.download_button(
             "ดาวน์โหลด PDF",
             pdf_bytes,
-            f"parking_sign_{row['book_no']}.pdf",
+            safe_download_filename("parking_sign", row["book_no"], "pdf"),
             "application/pdf",
             use_container_width=True,
             key=f"list_pdf_{request_id}",

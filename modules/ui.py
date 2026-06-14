@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 from urllib.parse import quote
 
 import streamlit as st
@@ -790,6 +791,18 @@ def safe_file_link(url: str | None, label: str = "เปิดไฟล์") -> 
         st.caption(text)
         return
     st.link_button(label, text, use_container_width=True)
+
+
+def safe_download_filename(prefix: str, name: str, extension: str) -> str:
+    clean_name = re.sub(r"[^\wก-๙.-]+", "_", str(name or "").strip(), flags=re.UNICODE)
+    clean_name = re.sub(r"_+", "_", clean_name).strip("._")
+    clean_prefix = re.sub(r"[^\w.-]+", "_", str(prefix or "download").strip(), flags=re.UNICODE).strip("._")
+    clean_extension = str(extension or "bin").strip().lstrip(".") or "bin"
+    if not clean_name:
+        clean_name = "file"
+    if not clean_prefix:
+        clean_prefix = "download"
+    return f"{clean_prefix}_{clean_name}.{clean_extension}"
 
 
 def with_role_url(href: str) -> str:

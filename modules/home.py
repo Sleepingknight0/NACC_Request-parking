@@ -9,7 +9,7 @@ from modules.guard_packages import build_guard_packages
 from modules.locks import begin_action_lock, end_action_lock
 from modules.pdf_generator import build_parking_pdf
 from modules.sheets import initialize_storage, read_sheet
-from modules.ui import inject_global_css, render_action_grid, render_page_title, status_badge
+from modules.ui import inject_global_css, render_action_grid, render_page_title, safe_download_filename, status_badge
 
 
 def _metric_cards(values: list[tuple[str, int]]) -> None:
@@ -112,7 +112,7 @@ def _render_guard_card(row, vehicles, *, prefix: str, admin: bool = False) -> No
         cols[0].download_button(
             "ดาวน์โหลดป้าย",
             pdf_bytes,
-            f"parking_sign_{row['book_no']}.pdf",
+            safe_download_filename("parking_sign", row["book_no"], "pdf"),
             "application/pdf",
             key=f"{prefix}_pdf_{request_id}",
             use_container_width=True,
@@ -123,7 +123,7 @@ def _render_guard_card(row, vehicles, *, prefix: str, admin: bool = False) -> No
                 if cols[1].button("รับงาน", key=f"{prefix}_accept_{request_id}", use_container_width=True):
                     lock_key = f"accept_{request_id}"
                     if not begin_action_lock(lock_key):
-                        st.warning("กรุณารอสักครู่ อย่ากดซ้ำ")
+                        st.warning("ระบบกำลังดำเนินการอยู่ กรุณารอสักครู่")
                     else:
                         try:
                             with st.spinner("กำลังรับงาน..."):
@@ -210,6 +210,7 @@ def _render_guard_home(packages, vehicles) -> None:
         ]
     )
     _render_guard_section("งานเปิดให้ทำ", groups["open"], vehicles, prefix="guard_open")
+    _render_guard_section("งานวันนี้", groups["today"], vehicles, prefix="guard_today")
     _render_guard_section("งานใกล้ถึง", groups["upcoming"], vehicles, prefix="guard_upcoming")
     _render_guard_section("ส่งแล้วรอตรวจ", groups["submitted"], vehicles, prefix="guard_submitted")
     _render_guard_section("เสร็จแล้ว", groups["done"], vehicles, prefix="guard_done")
@@ -242,6 +243,16 @@ def _render_officer_home(requests, packages) -> None:
         st.caption("ไม่มีรายการ")
     else:
         for _, row in groups["pending"].head(6).iterrows():
+            with st.container(border=True):
+                st.markdown(f"### เลขหนังสือ {row['book_no']}")
+                st.write(f"**สำนัก/หน่วยงาน:** {row['source_agency']}")
+                st.write(f"**วันที่จอด:** {row['date_summary']}")
+                st.write(f"**จุดจอด:** {row['parking_location']} | **สถานะ:** {status_badge(row['status'], 'guard')}", unsafe_allow_html=True)
+    st.subheader("งานที่ส่งแล้วรอยืนยัน")
+    if groups["submitted"].empty:
+        st.caption("ไม่มีรายการ")
+    else:
+        for _, row in groups["submitted"].head(6).iterrows():
             with st.container(border=True):
                 st.markdown(f"### เลขหนังสือ {row['book_no']}")
                 st.write(f"**สำนัก/หน่วยงาน:** {row['source_agency']}")

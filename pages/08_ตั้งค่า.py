@@ -9,6 +9,7 @@ from modules.constants import (
     WORKSHEET_SCHEMAS,
     sheet_title_for,
 )
+from modules.audit import write_audit_log
 from modules.db import cancel_request, repair_guard_task_packages
 from modules.sheets import initialize_storage, normalize_all_worksheets, read_sheet, validate_storage_schema
 from modules.ui import inject_global_css, is_local_upload_url, render_dataframe, render_page_title
@@ -22,18 +23,21 @@ render_page_title("ตั้งค่า", "ตรวจฐานข้อมู
 initialize_storage()
 
 st.subheader("เครื่องมือซ่อมระบบ")
+confirm_repair = st.checkbox("ยืนยันการเขียนข้อมูลสำหรับเครื่องมือซ่อมระบบ")
 tool_col1, tool_col2, tool_col3 = st.columns(3)
-if tool_col1.button("ปรับฐานข้อมูลให้เป็นภาษาไทย", type="primary", use_container_width=True):
+if tool_col1.button("ปรับฐานข้อมูลให้เป็นภาษาไทย", type="primary", use_container_width=True, disabled=not confirm_repair):
     with st.spinner("กำลังปรับฐานข้อมูล..."):
         normalize_all_worksheets()
+        write_audit_log("normalize_worksheets", "all", "all", new_value={"tool": "thai_headers"}, user="แอดมิน")
     st.success("ปรับหัวตาราง สถานะ ค่าใช่/ไม่ใช่ และรูปแบบวันที่แล้ว")
 
-if tool_col2.button("ซ่อมรูปแบบวันที่ในฐานข้อมูล", use_container_width=True):
+if tool_col2.button("ซ่อมรูปแบบวันที่ในฐานข้อมูล", use_container_width=True, disabled=not confirm_repair):
     with st.spinner("กำลังซ่อมรูปแบบวันที่..."):
         normalize_all_worksheets()
+        write_audit_log("repair_date_formats", "all", "all", new_value={"format": "YYYY-MM-DD/YYYY-MM"}, user="แอดมิน")
     st.success("ซ่อมวันที่และเดือนรายงานเป็นรูปแบบ YYYY-MM-DD / YYYY-MM แล้ว")
 
-if tool_col3.button("รวมงาน รปภ. ตามเลขหนังสือ", use_container_width=True):
+if tool_col3.button("รวมงาน รปภ. ตามเลขหนังสือ", use_container_width=True, disabled=not confirm_repair):
     with st.spinner("กำลังเติมข้อมูล package ของงาน รปภ...."):
         repaired = repair_guard_task_packages(user="แอดมิน")
     st.success(f"ปรับข้อมูลสรุปงาน รปภ. แล้ว {repaired} แถว")
@@ -154,15 +158,16 @@ qa_rows = requests[
 ] if not requests.empty else requests
 st.metric("QA rows ที่ยังไม่ยกเลิก", len(qa_rows))
 with st.expander("ยกเลิกข้อมูลทดสอบ QA-PROD"):
+    confirm_qa_cleanup = st.checkbox("ยืนยันการยกเลิกข้อมูลทดสอบ production QA")
     render_dataframe(
         qa_rows,
         ["book_no", "received_date", "source_agency", "parking_location", "status"],
         worksheet="Requests",
         empty_text="ไม่มี QA row ที่ต้อง cleanup",
     )
-    if not qa_rows.empty and st.button("ยกเลิก QA rows ทั้งหมด", type="primary"):
+    if not qa_rows.empty and st.button("ยกเลิก QA rows ทั้งหมด", type="primary", disabled=not confirm_qa_cleanup):
         with st.spinner("กำลังยกเลิกข้อมูลทดสอบ..."):
             for _, row in qa_rows.iterrows():
-                cancel_request(row["request_id"], "QA cleanup", user="แอดมิน")
+                cancel_request(row["request_id"], "ข้อมูลทดสอบ production QA", user="แอดมิน")
         st.success("ยกเลิก QA rows แล้ว")
         st.rerun()

@@ -9,7 +9,7 @@ from modules.guard_packages import build_guard_packages
 from modules.locks import begin_action_lock, end_action_lock
 from modules.pdf_generator import build_parking_pdf
 from modules.sheets import read_sheet
-from modules.ui import inject_global_css, render_dataframe, render_page_title, status_badge
+from modules.ui import inject_global_css, render_dataframe, render_page_title, safe_download_filename, status_badge
 
 
 st.set_page_config(page_title="งาน รปภ.", page_icon="icon.svg", layout="wide")
@@ -31,8 +31,13 @@ if packages.empty:
 if get_current_role() != ROLE_ADMIN:
     packages = packages[packages["status"] != "cancelled"]
 
+today = pd.Timestamp.today().date().isoformat()
 active = packages[packages["status"].isin(["pending", "in_progress"])] if not packages.empty else packages
 open_jobs = active[active["is_open"].astype(bool)] if not active.empty else active
+today_jobs = active[
+    active["start_date"].astype(str).le(today)
+    & active["end_date"].astype(str).ge(today)
+] if not active.empty else active
 upcoming_jobs = active[~active["is_open"].astype(bool)] if not active.empty else active
 submitted_jobs = packages[packages["status"] == "submitted"] if not packages.empty else packages
 done_jobs = packages[packages["status"] == "done"] if not packages.empty else packages
@@ -40,10 +45,10 @@ cancelled_jobs = packages[packages["status"] == "cancelled"] if not packages.emp
 
 metric_cols = st.columns(5)
 metric_cols[0].metric("งานเปิดให้ทำ", len(open_jobs))
-metric_cols[1].metric("งานใกล้ถึง", len(upcoming_jobs))
-metric_cols[2].metric("ส่งแล้วรอตรวจ", len(submitted_jobs))
-metric_cols[3].metric("เสร็จแล้ว", len(done_jobs))
-metric_cols[4].metric("ยกเลิก", len(cancelled_jobs))
+metric_cols[1].metric("งานวันนี้", len(today_jobs))
+metric_cols[2].metric("งานใกล้ถึง", len(upcoming_jobs))
+metric_cols[3].metric("ส่งแล้วรอตรวจ", len(submitted_jobs))
+metric_cols[4].metric("เสร็จแล้ว", len(done_jobs))
 
 
 def _plates_for(request_id: str) -> list[str]:
@@ -70,7 +75,7 @@ def _download_pdf(row, plates: list[str], key: str) -> None:
     st.download_button(
         "ดาวน์โหลดป้าย",
         pdf_bytes,
-        f"parking_sign_{row['book_no']}.pdf",
+        safe_download_filename("parking_sign", row["book_no"], "pdf"),
         "application/pdf",
         use_container_width=True,
         key=key,
@@ -108,7 +113,7 @@ def _render_cards(df, prefix: str) -> None:
                     if action_cols[1].button("รับงาน", key=f"{prefix}_accept_{request_id}", use_container_width=True):
                         lock_key = f"accept_{request_id}"
                         if not begin_action_lock(lock_key):
-                            st.warning("กรุณารอสักครู่ อย่ากดซ้ำ")
+                            st.warning("ระบบกำลังดำเนินการอยู่ กรุณารอสักครู่")
                         else:
                             try:
                                 with st.spinner("กำลังรับงาน..."):
@@ -138,8 +143,8 @@ def _render_cards(df, prefix: str) -> None:
                     st.switch_page("pages/04_รายละเอียดหนังสือ.py")
 
 
-tabs = ["งานเปิดให้ทำ", "งานใกล้ถึง", "ส่งแล้วรอตรวจ", "เสร็จแล้ว"]
-frames = [open_jobs, upcoming_jobs, submitted_jobs, done_jobs]
+tabs = ["งานเปิดให้ทำ", "งานวันนี้", "งานใกล้ถึง", "ส่งแล้วรอตรวจ", "เสร็จแล้ว"]
+frames = [open_jobs, today_jobs, upcoming_jobs, submitted_jobs, done_jobs]
 if get_current_role() == ROLE_ADMIN:
     tabs.append("ยกเลิก")
     frames.append(cancelled_jobs)

@@ -5,7 +5,7 @@ from datetime import datetime
 from modules.audit import write_audit_log
 from modules.constants import ID_PREFIXES
 from modules.dates import to_iso_date, to_month_key
-from modules.guard_packages import build_guard_packages, summarize_dates
+from modules.guard_packages import build_guard_packages, is_guard_job_open, summarize_dates
 from modules.ids import make_id
 from modules.sheets import (
     append_rows,
@@ -206,13 +206,53 @@ def cancel_request_date(request_date_id: str, reason: str, user: str = "") -> No
         request_date_id,
         {"status": "cancelled", "cancelled_at": timestamp, "cancelled_reason": reason},
     )
+    updated_dates = list_request_dates(request_id)
+    active_dates = updated_dates[updated_dates["status"].astype(str) != "cancelled"]
     tasks = list_guard_tasks(request_id)
-    for _, row in tasks[tasks["request_date_id"].astype(str) == str(request_date_id)].iterrows():
-        update_row_by_id("Guard_Tasks", "task_id", row["task_id"], {"status": "cancelled", "updated_at": timestamp})
+
+    if active_dates.empty:
+        for _, row in tasks[tasks["status"].astype(str) != "cancelled"].iterrows():
+            update_row_by_id("Guard_Tasks", "task_id", row["task_id"], {"status": "cancelled", "updated_at": timestamp})
+    else:
+        active_dates = active_dates.sort_values("parking_date")
+        active_ids = set(active_dates["request_date_id"].astype(str).tolist())
+        active_values = active_dates["parking_date"].astype(str).tolist()
+        parking_times = [str(value).strip() for value in active_dates.get("parking_time", []).tolist() if str(value).strip()]
+        task_updates = {
+            "request_date_id": active_dates.iloc[0]["request_date_id"],
+            "parking_date": active_values[0],
+            "start_date": active_values[0],
+            "end_date": active_values[-1],
+            "date_summary": summarize_dates(active_values),
+            "parking_time": parking_times[0] if parking_times else "",
+            "date_count": len(active_values),
+            "source_request_date_ids": "|".join(active_dates["request_date_id"].astype(str).tolist()),
+            "updated_at": timestamp,
+        }
+
+        for _, row in tasks.iterrows():
+            if str(row.get("status", "")) == "cancelled":
+                continue
+            source_ids = [
+                value
+                for value in str(row.get("source_request_date_ids") or row.get("request_date_id") or "").split("|")
+                if value
+            ]
+            if source_ids and request_date_id in source_ids and not active_ids.intersection(source_ids):
+                update_row_by_id("Guard_Tasks", "task_id", row["task_id"], {"status": "cancelled", "updated_at": timestamp})
+            else:
+                update_row_by_id("Guard_Tasks", "task_id", row["task_id"], task_updates)
     write_audit_log("cancel_date", "Request_Dates", request_date_id, new_value={"reason": reason}, user=user)
 
 
 def cancel_vehicle(vehicle_id: str, reason: str, user: str = "") -> None:
+    vehicles = read_sheet("Vehicles")
+    match = vehicles[vehicles["vehicle_id"].astype(str) == str(vehicle_id)]
+    if match.empty:
+        raise ValueError("ไม่พบทะเบียนรถ")
+    if str(match.iloc[0].get("status", "")) == "cancelled":
+        return
+
     timestamp = now_iso()
     update_row_by_id(
         "Vehicles",
@@ -221,6 +261,19 @@ def cancel_vehicle(vehicle_id: str, reason: str, user: str = "") -> None:
         {"status": "cancelled", "cancelled_at": timestamp, "cancelled_reason": reason},
     )
     write_audit_log("cancel_vehicle", "Vehicles", vehicle_id, new_value={"reason": reason}, user=user)
+
+
+def _package_for_request(request_id: str) -> dict:
+    package = build_guard_packages().query("request_id == @request_id")
+    if package.empty:
+        raise ValueError("ไม่พบงาน รปภ. ของคำขอนี้")
+    return package.iloc[0].to_dict()
+
+
+def _ensure_package_open(package: dict) -> None:
+    if not is_guard_job_open(package):
+        open_date = package.get("open_date") or "-"
+        raise ValueError(f"งานนี้ยังไม่เปิดให้ทำ เปิดให้ทำวันที่ {open_date}")
 
 
 def submit_guard_task(
@@ -319,6 +372,8 @@ def accept_guard_package(request_id: str, user: str = "รปภ.") -> None:
         raise ValueError("งานนี้เสร็จสิ้นแล้ว")
     if active_tasks.empty:
         raise ValueError("งานนี้ถูกยกเลิก")
+    if "pending" in active_statuses:
+        _ensure_package_open(_package_for_request(request_id))
 
     timestamp = now_iso()
     changed = 0
@@ -352,12 +407,19 @@ def submit_guard_package(
     submitted_by: str = "",
     is_final: bool = True,
 ) -> str:
-    package = build_guard_packages().query("request_id == @request_id")
-    if package.empty:
-        raise ValueError("ไม่พบงาน รปภ. ของคำขอนี้")
-    if str(package.iloc[0].get("status", "")) == "pending":
+    package_row = _package_for_request(request_id)
+    status = str(package_row.get("status", ""))
+    if status == "cancelled":
+        raise ValueError("งานนี้ถูกยกเลิก")
+    if status == "done":
+        raise ValueError("งานนี้ปิดแล้ว")
+    if status == "submitted":
+        raise ValueError("งานนี้ส่งแล้ว รอเจ้าหน้าที่ตรวจ")
+    if status in {"pending", "in_progress"}:
+        _ensure_package_open(package_row)
+    if status == "pending":
         accept_guard_package(request_id, user=submitted_by or "รปภ.")
-    task_id = str(package.iloc[0]["primary_task_id"])
+    task_id = str(package_row["primary_task_id"])
     return submit_guard_task(
         task_id=task_id,
         near_photo_meta=near_photo_meta,

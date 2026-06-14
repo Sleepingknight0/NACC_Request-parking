@@ -54,3 +54,6 @@ def test_validate_guard_submission_requires_near_and_far_photos():
     ok, message = validate_guard_submission(None, object())
     assert ok is False
     assert "รูปใกล้" in message
+    ok, message = validate_guard_submission(object(), None)
+    assert ok is False
+    assert "รูปไกล" in message

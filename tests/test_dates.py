@@ -15,10 +15,14 @@ def test_to_iso_date_normalizes_supported_values():
     assert to_iso_date(datetime(2026, 6, 13, 8, 30)) == "2026-06-13"
     assert to_iso_date("13/06/2026") == "2026-06-13"
     assert to_iso_date("2026-06-13") == "2026-06-13"
+    assert to_iso_date("2026-06-13 00:00:00") == "2026-06-13"
+    assert to_iso_date("2569-06-13") == "2026-06-13"
 
 
 def test_to_month_key_returns_year_month():
     assert to_month_key("2026-07-02") == "2026-07"
+    assert to_month_key("2026-07-02 00:00:00") == "2026-07"
+    assert to_month_key("2569-07-02") == "2026-07"
 
 
 def test_expand_date_range_handles_cross_month_dates():
