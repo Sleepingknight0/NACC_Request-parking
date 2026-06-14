@@ -1,3 +1,5 @@
+import importlib
+
 import pandas as pd
 import streamlit as st
 
@@ -13,6 +15,9 @@ from modules.audit import write_audit_log
 from modules.db import cancel_requests, repair_guard_task_packages
 from modules.drive_preview import load_drive_file_for_preview, render_drive_image_preview
 from modules.sheets import initialize_storage, normalize_all_worksheets, read_sheet, validate_storage_schema
+import modules.storage as storage
+
+storage = importlib.reload(storage)
 from modules.storage import check_drive_connection, check_drive_write_access, get_drive_config_status, get_service_account_email, is_drive_url
 from modules.ui import inject_global_css, is_local_upload_url, render_dataframe, render_page_title
 

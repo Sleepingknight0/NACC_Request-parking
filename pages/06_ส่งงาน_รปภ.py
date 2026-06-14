@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+
 import pandas as pd
 import streamlit as st
 
@@ -9,6 +11,9 @@ from modules.guard_packages import build_guard_packages, get_guard_package
 from modules.locks import begin_action_lock, end_action_lock
 from modules.pdf_generator import build_parking_pdf
 from modules.sheets import read_sheet
+import modules.storage as storage
+
+storage = importlib.reload(storage)
 from modules.storage import upload_file
 from modules.ui import inject_global_css, render_key_value_table, render_page_title, safe_download_filename, status_badge
 from modules.validators import validate_guard_submission

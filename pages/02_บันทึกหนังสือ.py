@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+
 import streamlit as st
 
 from modules.auth import ROLE_ADMIN, ROLE_OFFICER, get_current_role, require_role
@@ -8,6 +10,9 @@ from modules.dates import expand_date_range, parse_multiline_dates, to_iso_date
 from modules.db import create_request
 from modules.guard_packages import summarize_dates
 from modules.locks import begin_action_lock, end_action_lock, is_action_locked
+import modules.storage as storage
+
+storage = importlib.reload(storage)
 from modules.storage import upload_file
 from modules.ui import inject_global_css, render_key_value_table, render_page_title
 from modules.validators import (
