@@ -1,9 +1,13 @@
+import pytest
+
+from modules import sheets
 from modules.sheets import (
     _normalize_private_key,
     _normalize_columns,
     _sheet_range,
     _spreadsheet_id_from_url,
     _to_sheet_headers,
+    append_rows,
 )
 
 
@@ -114,3 +118,22 @@ def test_normalize_columns_cleans_sheet_datetime_dates_and_month_keys():
 
     assert normalized.loc[0, "parking_date"] == "2026-06-14"
     assert normalized.loc[0, "month_key"] == "2026-06"
+
+
+def test_append_rows_does_not_write_when_gsheet_read_fails(monkeypatch):
+    writes = []
+
+    monkeypatch.setattr(sheets, "_use_gsheets", lambda: True)
+
+    def fail_read(worksheet, *args, **kwargs):
+        if kwargs.get("strict"):
+            raise RuntimeError("read failed")
+        return sheets._empty_df(worksheet)
+
+    monkeypatch.setattr(sheets, "_read_gsheet", fail_read)
+    monkeypatch.setattr(sheets, "_write_gsheet", lambda *args, **kwargs: writes.append(args))
+
+    with pytest.raises(RuntimeError, match="read failed"):
+        append_rows("Audit_Log", [{"log_id": "LOG-1", "action": "test"}])
+
+    assert writes == []

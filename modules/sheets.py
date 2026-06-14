@@ -406,7 +406,7 @@ def _write_csv_sheet(worksheet: str, df: pd.DataFrame) -> None:
     sheet_df.to_csv(_path_for(worksheet), index=False, encoding="utf-8-sig")
 
 
-def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
+def _read_gsheet(worksheet: str, ttl: int = 0, *, strict: bool = False) -> pd.DataFrame:
     sheet_title = sheet_title_for(worksheet)
     try:
         if Credentials is not None and AuthorizedSession is not None:
@@ -427,6 +427,9 @@ def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
 
             with st.expander("รายละเอียด error สำหรับแก้ระบบ"):
                 st.code(str(exc))
+
+            if strict:
+                st.stop()
 
             return _empty_df(worksheet)
 
@@ -470,7 +473,7 @@ def _write_gsheet(worksheet: str, df: pd.DataFrame) -> None:
         ) from exc
 
 
-def read_sheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
+def read_sheet(worksheet: str, ttl: int = 0, *, strict: bool = False) -> pd.DataFrame:
     """
     Read worksheet and return internal English field keys.
     """
@@ -478,7 +481,7 @@ def read_sheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
         raise KeyError(f"Unknown worksheet: {worksheet}")
 
     if _use_gsheets():
-        return _read_gsheet(worksheet, ttl=ttl)
+        return _read_gsheet(worksheet, ttl=ttl, strict=strict)
 
     return _read_csv_sheet(worksheet)
 
@@ -504,7 +507,7 @@ def append_rows(worksheet: str, rows: list[dict]) -> None:
     if not rows:
         return
 
-    existing = read_sheet(worksheet)
+    existing = read_sheet(worksheet, strict=True)
     new_rows = pd.DataFrame(rows)
     combined = pd.concat([existing, new_rows], ignore_index=True)
 
@@ -512,7 +515,7 @@ def append_rows(worksheet: str, rows: list[dict]) -> None:
 
 
 def update_row_by_id(worksheet: str, id_col: str, id_value: str, updates: dict) -> None:
-    df = read_sheet(worksheet)
+    df = read_sheet(worksheet, strict=True)
 
     if id_col not in df.columns:
         raise KeyError(f"{id_col} not found in {worksheet}")
@@ -608,4 +611,4 @@ def validate_storage_schema() -> dict[str, list[str]]:
 
 def normalize_all_worksheets() -> None:
     for worksheet in WORKSHEET_SCHEMAS:
-        write_sheet(worksheet, read_sheet(worksheet))
+        write_sheet(worksheet, read_sheet(worksheet, strict=True))

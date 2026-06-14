@@ -198,9 +198,12 @@ def cancel_requests(request_ids: list[str], reason: str, user: str = "") -> int:
     if not clean_ids:
         return 0
 
-    requests = read_sheet("Requests")
+    requests = read_sheet("Requests", strict=True)
     if requests.empty:
         return 0
+    dates = read_sheet("Request_Dates", strict=True)
+    tasks = read_sheet("Guard_Tasks", strict=True)
+    vehicles = read_sheet("Vehicles", strict=True)
 
     target_mask = (
         requests["request_id"].astype(str).isin(clean_ids)
@@ -232,7 +235,6 @@ def cancel_requests(request_ids: list[str], reason: str, user: str = "") -> int:
         "cancelled_at": timestamp,
         "cancelled_reason": reason,
     }
-    dates = read_sheet("Request_Dates")
     if not dates.empty:
         date_mask = (
             dates["request_id"].astype(str).isin(target_id_set)
@@ -245,7 +247,6 @@ def cancel_requests(request_ids: list[str], reason: str, user: str = "") -> int:
                 dates.loc[date_mask, column] = value
             write_sheet("Request_Dates", dates)
 
-    tasks = read_sheet("Guard_Tasks")
     if not tasks.empty:
         task_mask = (
             tasks["request_id"].astype(str).isin(target_id_set)
@@ -256,7 +257,6 @@ def cancel_requests(request_ids: list[str], reason: str, user: str = "") -> int:
             tasks.loc[task_mask, "updated_at"] = timestamp
             write_sheet("Guard_Tasks", tasks)
 
-    vehicles = read_sheet("Vehicles")
     if not vehicles.empty:
         vehicle_mask = (
             vehicles["request_id"].astype(str).isin(target_id_set)
