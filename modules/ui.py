@@ -59,18 +59,14 @@ def _theme_mode() -> str:
 
     mode = THEME_QUERY_VALUES.get(str(query_theme).lower(), st.session_state.get("nacc_theme_mode", THEME_OPTIONS[0]))
     st.session_state.nacc_theme_mode = mode
-    role = st.session_state.get("user_role") or st.query_params.get("role", "")
-    if isinstance(role, list):
-        role = role[0] if role else ""
-    role_suffix = f"&role={quote(str(role))}" if role else ""
 
     day_active = " is-active" if mode == "day" else ""
     night_active = " is-active" if mode == "night" else ""
     st.markdown(
         f"""
         <nav class="theme-switcher" aria-label="เลือกธีม">
-            <a class="theme-icon-button{day_active}" href="?theme={THEME_QUERY_KEYS["day"]}{role_suffix}" target="_self" title="ธีมเช้า" aria-label="ธีมเช้า">☀</a>
-            <a class="theme-icon-button{night_active}" href="?theme={THEME_QUERY_KEYS["night"]}{role_suffix}" target="_self" title="ธีมกลางคืน" aria-label="ธีมกลางคืน">☾</a>
+            <a class="theme-icon-button{day_active}" href="?theme={THEME_QUERY_KEYS["day"]}" target="_self" title="ธีมเช้า" aria-label="ธีมเช้า">☀</a>
+            <a class="theme-icon-button{night_active}" href="?theme={THEME_QUERY_KEYS["night"]}" target="_self" title="ธีมกลางคืน" aria-label="ธีมกลางคืน">☾</a>
         </nav>
         """,
         unsafe_allow_html=True,
@@ -224,6 +220,54 @@ def inject_global_css() -> None:
         section[data-testid="stSidebar"] a {
             color: var(--text) !important;
             border-radius: 8px;
+        }
+
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {
+            display: none !important;
+        }
+
+        .nacc-role-landing {
+            max-width: 860px;
+            margin: 48px auto 22px;
+            text-align: center;
+        }
+
+        .nacc-role-landing h1 {
+            border-left: 0;
+            padding-left: 0;
+            font-size: clamp(2rem, 4vw, 3.1rem);
+        }
+
+        .nacc-role-landing p {
+            color: var(--primary);
+            font-size: 1.7rem;
+            font-weight: 850;
+            margin-top: 12px;
+        }
+
+        .nacc-role-card {
+            min-height: 150px;
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-top: 6px solid var(--primary);
+            border-radius: 10px;
+            padding: 24px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
+        .nacc-role-card strong {
+            display: block;
+            color: var(--primary);
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .nacc-role-card span {
+            color: var(--text);
+            font-size: 1.02rem;
+            line-height: 1.5;
         }
 
         section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover,
@@ -749,13 +793,7 @@ def safe_file_link(url: str | None, label: str = "เปิดไฟล์") -> 
 
 
 def with_role_url(href: str) -> str:
-    role = st.session_state.get("user_role") or st.query_params.get("role", "")
-    if isinstance(role, list):
-        role = role[0] if role else ""
-    if not role:
-        return href
-    separator = "&" if "?" in href else "?"
-    return f"{href}{separator}role={quote(str(role))}"
+    return href
 
 
 def request_detail_url(request_id: str) -> str:

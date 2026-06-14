@@ -300,6 +300,48 @@ def submit_guard_task(
     return submission_id
 
 
+def accept_guard_package(request_id: str, user: str = "รปภ.") -> None:
+    request = get_request_by_id(request_id)
+    if request and str(request.get("status", "")) == "cancelled":
+        raise ValueError("งานนี้ถูกยกเลิก")
+
+    tasks = list_guard_tasks(request_id)
+    if tasks.empty:
+        raise ValueError("ไม่พบงาน รปภ.")
+
+    active_tasks = tasks[tasks["status"].astype(str) != "cancelled"]
+    active_statuses = set(active_tasks["status"].astype(str).tolist())
+    if not active_tasks.empty and active_statuses <= {"in_progress"}:
+        return
+    if "submitted" in active_statuses:
+        raise ValueError("งานนี้ส่งแล้ว")
+    if "done" in active_statuses and active_statuses <= {"done"}:
+        raise ValueError("งานนี้เสร็จสิ้นแล้ว")
+    if active_tasks.empty:
+        raise ValueError("งานนี้ถูกยกเลิก")
+
+    timestamp = now_iso()
+    changed = 0
+    for _, row in active_tasks.iterrows():
+        if str(row.get("status", "")) == "pending":
+            update_row_by_id(
+                "Guard_Tasks",
+                "task_id",
+                row["task_id"],
+                {"status": "in_progress", "assigned_to": user, "updated_at": timestamp},
+            )
+            changed += 1
+
+    if changed:
+        write_audit_log(
+            "accept_guard_package",
+            "Guard_Tasks",
+            request_id,
+            new_value={"status": "in_progress", "accepted_by": user},
+            user=user,
+        )
+
+
 def submit_guard_package(
     *,
     request_id: str,
@@ -313,6 +355,8 @@ def submit_guard_package(
     package = build_guard_packages().query("request_id == @request_id")
     if package.empty:
         raise ValueError("ไม่พบงาน รปภ. ของคำขอนี้")
+    if str(package.iloc[0].get("status", "")) == "pending":
+        accept_guard_package(request_id, user=submitted_by or "รปภ.")
     task_id = str(package.iloc[0]["primary_task_id"])
     return submit_guard_task(
         task_id=task_id,
@@ -368,6 +412,60 @@ def mark_task_done(task_id: str, user: str = "") -> None:
     if match.empty:
         raise ValueError("ไม่พบงาน รปภ.")
     mark_guard_package_done(str(match.iloc[0]["request_id"]), user=user)
+
+
+def set_guard_package_status(
+    request_id: str,
+    status: str,
+    *,
+    reason: str = "",
+    user: str = "แอดมิน",
+) -> None:
+    valid_statuses = {"pending", "in_progress", "submitted", "done", "cancelled"}
+    if status not in valid_statuses:
+        raise ValueError("สถานะไม่ถูกต้อง")
+    if status == "cancelled" and not str(reason or "").strip():
+        raise ValueError("กรุณาระบุเหตุผลยกเลิก")
+    if status == "done":
+        mark_guard_package_done(request_id, user=user)
+        return
+
+    request = get_request_by_id(request_id)
+    if request and str(request.get("status", "")) == "cancelled" and status != "cancelled":
+        raise ValueError("คำขอนี้ถูกยกเลิกแล้ว")
+
+    tasks = list_guard_tasks(request_id)
+    if tasks.empty:
+        raise ValueError("ไม่พบงาน รปภ.")
+
+    active_tasks = tasks if status == "cancelled" else tasks[tasks["status"].astype(str) != "cancelled"]
+    if active_tasks.empty:
+        return
+
+    current_statuses = set(active_tasks["status"].astype(str).tolist())
+    if current_statuses <= {status}:
+        return
+
+    timestamp = now_iso()
+    updates = {"status": status, "updated_at": timestamp}
+    if status in {"pending", "in_progress"}:
+        updates.update({"submitted_at": "", "completed_at": ""})
+    if status == "submitted":
+        updates.update({"submitted_at": timestamp, "completed_at": ""})
+    if status == "cancelled":
+        updates.update({"completed_at": "", "submitted_at": ""})
+
+    for _, row in active_tasks.iterrows():
+        update_row_by_id("Guard_Tasks", "task_id", row["task_id"], updates)
+
+    write_audit_log(
+        "override_guard_package_status",
+        "Guard_Tasks",
+        request_id,
+        old_value={"statuses": sorted(current_statuses)},
+        new_value={"status": status, "reason": reason},
+        user=user,
+    )
 
 
 def repair_guard_task_packages(user: str = "admin") -> int:

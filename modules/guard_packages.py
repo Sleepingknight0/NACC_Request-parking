@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -28,6 +28,8 @@ PACKAGE_COLUMNS = [
     "plate_summary",
     "submitted_at",
     "completed_at",
+    "open_date",
+    "is_open",
 ]
 
 
@@ -66,6 +68,30 @@ def summarize_dates(values) -> str:
     if len(dates) <= 4:
         return f"{', '.join(dates)} ({len(dates)} วัน)"
     return f"{dates[0]} ถึง {dates[-1]} ({len(dates)} วัน)"
+
+
+def guard_open_date(package_or_start_date) -> str:
+    if isinstance(package_or_start_date, dict):
+        raw_value = package_or_start_date.get("start_date") or package_or_start_date.get("parking_date")
+    else:
+        raw_value = package_or_start_date
+    try:
+        start = pd.Timestamp(to_iso_date(raw_value)).date()
+    except Exception:
+        return ""
+    return (start - timedelta(days=1)).isoformat()
+
+
+def is_guard_job_open(package: dict, today=None) -> bool:
+    if today is None:
+        today_date = date.today()
+    else:
+        today_date = pd.Timestamp(to_iso_date(today)).date()
+
+    open_value = guard_open_date(package)
+    if not open_value:
+        return False
+    return today_date >= pd.Timestamp(open_value).date()
 
 
 def _package_status(task_statuses: list[str], request_status: str = "") -> str:
@@ -181,9 +207,14 @@ def build_guard_packages(
             }
         )
 
-    result = pd.DataFrame(rows, columns=PACKAGE_COLUMNS)
-    if not result.empty:
-        result = result.sort_values(["parking_date", "book_no"], ascending=[True, True]).reset_index(drop=True)
+    result = pd.DataFrame(rows)
+    if result.empty:
+        return pd.DataFrame(columns=PACKAGE_COLUMNS)
+
+    result["open_date"] = result.apply(lambda row: guard_open_date(row.to_dict()), axis=1)
+    result["is_open"] = result.apply(lambda row: is_guard_job_open(row.to_dict()), axis=1)
+    result = result.reindex(columns=PACKAGE_COLUMNS).fillna("")
+    result = result.sort_values(["parking_date", "book_no"], ascending=[True, True]).reset_index(drop=True)
     return result
 
 

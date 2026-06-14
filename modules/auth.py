@@ -6,33 +6,37 @@ import streamlit as st
 ROLE_ADMIN = "admin"
 ROLE_OFFICER = "officer"
 ROLE_GUARD = "guard"
-ROLE_VIEWER = "viewer"
 
 ROLE_LABELS = {
     ROLE_GUARD: "รปภ.",
     ROLE_OFFICER: "เจ้าหน้าที่",
     ROLE_ADMIN: "แอดมิน",
-    ROLE_VIEWER: "ผู้ดูข้อมูล",
 }
 
 ROLE_DESCRIPTIONS = {
     ROLE_GUARD: "ดูงาน ดาวน์โหลดป้าย และส่งรูปงาน",
-    ROLE_OFFICER: "บันทึกหนังสือและค้นหาคำขอ",
+    ROLE_OFFICER: "บันทึกหนังสือ ค้นหา และดูประวัติคำขอ",
     ROLE_ADMIN: "ตรวจงาน รายงาน และตั้งค่าระบบ",
-    ROLE_VIEWER: "ดูข้อมูลอย่างเดียว",
 }
 
 PAGE_ACCESS = {
-    "home": [ROLE_GUARD, ROLE_OFFICER, ROLE_ADMIN, ROLE_VIEWER],
-    "dashboard": [ROLE_ADMIN, ROLE_VIEWER],
+    "home": [ROLE_GUARD, ROLE_OFFICER, ROLE_ADMIN],
+    "dashboard": [ROLE_ADMIN],
     "new_request": [ROLE_OFFICER, ROLE_ADMIN],
-    "request_list": [ROLE_OFFICER, ROLE_ADMIN, ROLE_VIEWER],
-    "request_detail": [ROLE_OFFICER, ROLE_ADMIN, ROLE_VIEWER],
+    "request_list": [ROLE_OFFICER, ROLE_ADMIN],
+    "request_detail": [ROLE_OFFICER, ROLE_ADMIN],
     "guard_tasks": [ROLE_GUARD, ROLE_ADMIN],
     "guard_submit": [ROLE_GUARD, ROLE_ADMIN],
-    "monthly_report": [ROLE_ADMIN, ROLE_VIEWER],
+    "monthly_report": [ROLE_ADMIN],
     "settings": [ROLE_ADMIN],
 }
+
+
+def _admin_pin() -> str:
+    try:
+        return str(st.secrets.get("app", {}).get("admin_pin", "1234"))
+    except Exception:
+        return "1234"
 
 
 def get_current_role() -> str | None:
@@ -40,6 +44,7 @@ def get_current_role() -> str | None:
     if role in ROLE_LABELS:
         return str(role)
 
+    # Developer/debug fallback only. Normal navigation does not create role URLs.
     query_role = st.query_params.get("role", "")
     if isinstance(query_role, list):
         query_role = query_role[0] if query_role else ""
@@ -54,13 +59,10 @@ def set_current_role(role: str) -> None:
     if role not in ROLE_LABELS:
         raise ValueError("Unknown role")
     st.session_state["user_role"] = role
-    st.query_params["role"] = role
 
 
 def clear_role() -> None:
     st.session_state.pop("user_role", None)
-    if "role" in st.query_params:
-        del st.query_params["role"]
 
 
 def can_access(page_key: str, role: str | None = None) -> bool:
@@ -71,24 +73,40 @@ def can_access(page_key: str, role: str | None = None) -> bool:
 
 
 def render_role_selector() -> None:
-    st.markdown("## ระบบขอที่จอดรถ ป.ป.ช.")
-    st.caption("คุณใช้งานในฐานะอะไร")
+    st.markdown(
+        """
+        <section class="nacc-role-landing">
+            <h1>ระบบขอที่จอดรถ ป.ป.ช.</h1>
+            <p>คุณคือใคร</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    role_order = [ROLE_GUARD, ROLE_OFFICER, ROLE_ADMIN]
-    columns = st.columns(3)
+    role_order = [ROLE_GUARD, ROLE_OFFICER]
+    columns = st.columns(2)
     for column, role in zip(columns, role_order):
         with column:
-            st.markdown(f"### {ROLE_LABELS[role]}")
-            st.write(ROLE_DESCRIPTIONS[role])
-            if st.button(f"เข้าใช้งานในฐานะ{ROLE_LABELS[role]}", key=f"select_role_{role}", use_container_width=True):
+            st.markdown(
+                f"""
+                <div class="nacc-role-card">
+                    <strong>{ROLE_LABELS[role]}</strong>
+                    <span>{ROLE_DESCRIPTIONS[role]}</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button(ROLE_LABELS[role], key=f"select_role_{role}", use_container_width=True):
                 set_current_role(role)
                 st.rerun()
 
-    with st.expander("ผู้ดูข้อมูล"):
-        st.write(ROLE_DESCRIPTIONS[ROLE_VIEWER])
-        if st.button("เข้าใช้งานแบบดูข้อมูล", key="select_role_viewer", use_container_width=True):
-            set_current_role(ROLE_VIEWER)
-            st.rerun()
+    with st.expander("สำหรับผู้ดูแลระบบ"):
+        pin = st.text_input("รหัสผู้ดูแล", type="password", key="admin_pin_input")
+        if st.button("เข้าสู่ระบบผู้ดูแล", key="select_role_admin", use_container_width=True):
+            if pin == _admin_pin():
+                set_current_role(ROLE_ADMIN)
+                st.rerun()
+            st.error("รหัสไม่ถูกต้อง")
 
 
 def render_role_badge() -> None:
@@ -96,7 +114,7 @@ def render_role_badge() -> None:
     with st.sidebar:
         if role:
             st.caption(f"บทบาท: {ROLE_LABELS.get(role, role)}")
-            if st.button("เปลี่ยนบทบาท", use_container_width=True):
+            if st.button("เปลี่ยนผู้ใช้งาน", use_container_width=True):
                 clear_role()
                 st.rerun()
 
@@ -114,7 +132,7 @@ def require_role(allowed_roles: list[str], page_key: str | None = None) -> None:
 
     if role != ROLE_ADMIN and role not in allowed:
         st.warning("หน้านี้ไม่เปิดให้บทบาทของคุณใช้งาน")
-        if st.button("เปลี่ยนบทบาท", key=f"blocked_change_role_{page_key or 'page'}"):
+        if st.button("เปลี่ยนผู้ใช้งาน", key=f"blocked_change_role_{page_key or 'page'}"):
             clear_role()
             st.rerun()
         st.stop()
