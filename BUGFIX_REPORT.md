@@ -1,55 +1,55 @@
 # Bugfix Report
 
 ## Summary
-Production app, guard package, role access, date, cleanup, and write-safety bugs were fixed and deployed through commit `134cc76`.
+Implemented Google Drive-backed upload storage and in-app Drive photo preview. The app no longer needs production uploads to be saved as local `uploads/...` paths. Production deployment picked up the code, but full upload/preview QA is blocked until Drive folder IDs are configured in Streamlit Secrets.
 
 ## Bugs Found
-| Bug | Root cause | Fix summary | Manual verification |
+| Bug | Root cause | Fix summary | Verification |
 |---|---|---|---|
-| Role could be inferred from URL/session state and protected pages were not always role-first | Role handling trusted query/navigation state too much | Restricted role source to session state, added protected-page warning before selector | Fresh production load shows only รปภ., เจ้าหน้าที่, and hidden admin PIN |
-| Guard/officer/admin homes showed incomplete launcher sections | Home cards did not match role workflows | Added required sections and role-specific launcher cards | Production admin/guard/officer homes smoke-tested |
-| Multi-day guard work could split or display incorrectly | Guard task display used task/date rows too directly | Guard package builder groups by request; one request creates one package/PDF/submission flow | QA multi-day request created 3 date rows and 1 guard package |
-| Guard could accept/submit jobs before open date through backend paths | Availability was mostly UI-side | Backend now enforces open date = start date minus 1 day for accept and submit | Upcoming QA job showed disabled/not-open state; tests cover backend block |
-| Done/submitted/cancelled guard packages allowed unsafe repeated operations | Status transitions were not fully idempotent | Added status checks and idempotent accept/submit/mark-done/cancel behavior | Double-click/idempotence covered by tests; production flow accepted/submitted/confirmed once |
-| Date strings displayed with `00:00:00` and month filters could break | Datetime-like sheet strings were not normalized everywhere | Normalized ISO dates, month keys, Buddhist year inputs, and date ranges | Production sheet date/month rows verified as `YYYY-MM-DD` and `YYYY-MM` |
-| Local upload paths rendered like durable links | UI did not distinguish `uploads/...` from real URLs | Added temporary-file warnings and Settings local upload checker | Production Settings shows 2 temporary guard photo links |
-| Admin QA cleanup failed partway with a redacted Streamlit error | Settings loop cancelled each QA row by rereading/rewriting sheets repeatedly | Added batch `cancel_requests()` and wired QA cleanup to one idempotent write path | Production cleanup completed; active QA rows now 0 |
-| Legacy orphan guard task rows appeared as blank operational cards | Package builder accepted rows with blank/missing parent request IDs | Operational package builder now skips blank or missing parent requests | Production admin home now shows no blank pending/upcoming cards |
-| Append-style writes could overwrite a sheet after transient Google read failure | `read_sheet()` returned an empty dataframe on Google read errors, and `append_rows()` wrote over it | Added strict read mode for write paths; append/update/normalize/batch cancel stop before writing if reads fail | Regression test added; Settings still loads after deploy |
+| Uploaded files were saved to local `uploads/...` paths | `modules/storage.py` only had a local filesystem implementation | Added Google Drive backend, service-account upload, configurable sharing, and compatible metadata return shape | Unit tests; production Settings shows `google_drive` backend |
+| Production could silently keep using local storage | File storage backend was not separate from app data backend | Added `file_storage_backend` selection and Drive default when app storage is Google Sheets | Settings and tests verify backend selection |
+| Missing Drive config was not visible | No storage health UI existed | Added Settings section for backend, root/folder config, Drive connection check, and local-upload audit | Production Settings rendered storage section |
+| Reviewers had to open Drive manually to inspect guard photos | UI rendered links/flags, not image bytes | Added `modules/drive_preview.py` to fetch Drive bytes by service account and render `st.image` previews | Parser tests and local compile/smoke checks |
+| Drive URLs needed robust parsing | Stored URLs may use `/file/d`, `open?id`, `uc?id`, or raw IDs | Added parser with tests and local-path rejection | `tests/test_drive_preview.py` |
+| Existing local upload paths looked like durable links | `safe_file_link()` treated non-empty URLs as normal links | Added local upload warning and Drive URL classifier | Existing production local rows counted/warned in Settings |
+| Upload filenames were not traceable to business records | Call sites used generic prefixes or internal request IDs | Book uploads now use `book_{book_no}`; guard photos use `guard_{book_no}_{near|far|extra}` | Code review and unit tests for sanitization |
 
 ## Files Changed
-- `modules/auth.py`
-- `modules/dates.py`
-- `modules/db.py`
-- `modules/guard_packages.py`
+- `README.md`
+- `modules/storage.py`
+- `modules/drive_preview.py`
 - `modules/home.py`
-- `modules/sheets.py`
 - `modules/ui.py`
 - `pages/02_บันทึกหนังสือ.py`
-- `pages/03_รายการหนังสือ.py`
 - `pages/04_รายละเอียดหนังสือ.py`
-- `pages/05_งาน_รปภ.py`
 - `pages/06_ส่งงาน_รปภ.py`
 - `pages/08_ตั้งค่า.py`
-- `tests/test_auth.py`
-- `tests/test_dates.py`
-- `tests/test_guard_packages.py`
-- `tests/test_guard_workflow.py`
-- `tests/test_pdf_logic.py`
-- `tests/test_sheets.py`
-- `tests/test_status_transitions.py`
-- `tests/test_ui.py`
-- `tests/test_validators.py`
+- `requirements.txt`
+- `tests/test_drive_preview.py`
+- `tests/test_storage.py`
+- `TEST_REPORT.md`
+- `BUGFIX_REPORT.md`
 
 ## Automated Verification
-- `python -m pytest -q`: 47 passed
+- `python -m pytest -q`: 60 passed
 - `python -X utf8 -m compileall app.py streamlit_app.py modules pages tests`: passed
+- Local Streamlit smoke test: role selector, admin login, Settings storage-health section loaded without runtime error
 
 ## Production Verification
-- Production app loaded cleanly with no redacted runtime error.
-- Role selector showed รปภ. and เจ้าหน้าที่ only; admin remained hidden behind PIN `1234`.
-- Officer created QA requests, duplicate book number was blocked, search/detail paths worked.
-- Guard accepted an available job, downloaded one PDF sign, submitted near/far photos, and could not operate early/upcoming jobs.
-- Admin confirmed submitted work, used QA cleanup, and verified cancelled QA rows in Google Sheets.
-- README was not changed because setup and usage did not change.
+- Production app loaded to role selector with no raw traceback.
+- Admin PIN `1234` entered admin mode.
+- Settings page showed:
+  - `file_storage_backend = google_drive`
+  - root folder not configured
+  - all Drive folder IDs not configured
+  - local upload audit counts
+- Two QA production rows created during upload attempts were cancelled through admin QA cleanup with audit.
 
+## Production Blocker
+Google Drive folder configuration is missing in Streamlit Secrets, so a real production Drive upload and in-app private-photo preview cannot be completed yet.
+
+Required fix:
+- Add `[connections.gdrive].root_folder_id`.
+- Add folder IDs for `book_files`, `guard_submissions`, `generated_pdfs`, and `other`, or allow the app to create child folders under the root.
+- Share the folder with the app service account.
+- Rerun production QA for officer book upload, guard near/far photo upload, admin preview, request detail preview, and link permissions.

@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from io import BytesIO
 
+import pytest
+
 from modules.storage import (
+    DriveStorageConfigError,
     get_file_storage_backend,
     is_drive_url,
     is_local_upload_url,
     make_safe_file_name,
+    upload_file,
     upload_file_to_local,
 )
 
@@ -56,3 +60,12 @@ def test_upload_file_to_local_returns_compatible_metadata(tmp_path, monkeypatch)
     assert meta["storage_key"] == meta["file_url"]
     assert meta["storage_backend"] == "local"
     assert meta["drive_file_id"] == ""
+
+
+def test_upload_file_blocks_when_drive_selected_without_folder_config(monkeypatch):
+    monkeypatch.setenv("PARKING_APP_FILE_STORAGE_BACKEND", "google_drive")
+    monkeypatch.setattr("modules.storage._secret_get", lambda *args, default="": default)
+    upload = FakeUpload(b"hello", "test image.jpg", "image/jpeg")
+
+    with pytest.raises(DriveStorageConfigError, match="ยังไม่ได้ตั้งค่า Google Drive"):
+        upload_file(upload, "book_files", "book_QA")
