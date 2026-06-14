@@ -6,6 +6,7 @@ import pytest
 
 from modules.storage import (
     DriveStorageConfigError,
+    get_drive_config,
     get_file_storage_backend,
     is_drive_url,
     is_local_upload_url,
@@ -68,4 +69,15 @@ def test_upload_file_blocks_when_drive_selected_without_folder_config(monkeypatc
     upload = FakeUpload(b"hello", "test image.jpg", "image/jpeg")
 
     with pytest.raises(DriveStorageConfigError, match="ยังไม่ได้ตั้งค่า Google Drive"):
-        upload_file(upload, "book_files", "book_QA")
+        upload_file(upload, "other", "other_QA")
+
+
+def test_drive_config_includes_production_folder_defaults(monkeypatch):
+    monkeypatch.delenv("PARKING_APP_GDRIVE_BOOK_FILES_FOLDER_ID", raising=False)
+    monkeypatch.delenv("PARKING_APP_GDRIVE_GUARD_SUBMISSIONS_FOLDER_ID", raising=False)
+    monkeypatch.setattr("modules.storage._secret_get", lambda *args, default="": default)
+
+    config = get_drive_config()
+
+    assert config["folders"]["book_files"] == "1mhxxhIUUUse3_kUPJ8qA6xLIN0h1pOmx"
+    assert config["folders"]["guard_submissions"] == "1Hi9EVC7sWk7ZnnhlUdp58s3mwjH1L7dQ"

@@ -31,6 +31,12 @@ UPLOAD_DIR = Path("uploads")
 DRIVE_MISSING_CONFIG_MESSAGE = "ยังไม่ได้ตั้งค่า Google Drive สำหรับเก็บไฟล์"
 DRIVE_UPLOAD_FAILED_MESSAGE = "อัปโหลดไฟล์ไป Google Drive ไม่สำเร็จ"
 DRIVE_FOLDER_KEYS = ("book_files", "guard_submissions", "generated_pdfs", "other")
+DEFAULT_DRIVE_FOLDER_IDS = {
+    "book_files": "1mhxxhIUUUse3_kUPJ8qA6xLIN0h1pOmx",
+    "guard_submissions": "1Hi9EVC7sWk7ZnnhlUdp58s3mwjH1L7dQ",
+    "generated_pdfs": "",
+    "other": "",
+}
 
 
 class DriveStorageConfigError(RuntimeError):
@@ -109,6 +115,7 @@ def get_drive_config() -> dict:
             os.getenv(env_keys[key], "")
             or folder_config.get(key, "")
             or connection.get(f"{key}_folder_id", "")
+            or DEFAULT_DRIVE_FOLDER_IDS.get(key, "")
             or ""
         ).strip()
 
