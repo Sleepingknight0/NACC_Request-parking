@@ -48,13 +48,12 @@ st.download_button("ดาวน์โหลด PDF ป้าย", pdf_bytes, f"
 
 st.info("อัปโหลด 2 รูป: รูปใกล้ให้เห็นกรวย/กระดาษชัด และรูปไกลให้เห็นบริเวณจอดโดยรวม")
 
-with st.form("guard_submission"):
-    near_photo = st.file_uploader("รูปใกล้ *", type=["png", "jpg", "jpeg"])
-    far_photo = st.file_uploader("รูปไกล *", type=["png", "jpg", "jpeg"])
-    extra_photo = st.file_uploader("รูปเสริม", type=["png", "jpg", "jpeg"])
-    note = st.text_area("รายละเอียดเพิ่มเติม")
-    submitted_by = st.text_input("ผู้ส่งงาน", value="รปภ.")
-    submitted = st.form_submit_button("ส่งงาน", type="primary")
+near_photo = st.file_uploader("รูปใกล้ *", type=["png", "jpg", "jpeg"], key=f"{task_id}_near")
+far_photo = st.file_uploader("รูปไกล *", type=["png", "jpg", "jpeg"], key=f"{task_id}_far")
+extra_photo = st.file_uploader("รูปเสริม", type=["png", "jpg", "jpeg"], key=f"{task_id}_extra")
+note = st.text_area("รายละเอียดเพิ่มเติม")
+submitted_by = st.text_input("ผู้ส่งงาน", value="รปภ.")
+submitted = st.button("ส่งงาน", type="primary")
 
 if submitted:
     ok, message = validate_guard_submission(near_photo, far_photo)
