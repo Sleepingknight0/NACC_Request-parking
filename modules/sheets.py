@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -19,8 +20,19 @@ except Exception:  # pragma: no cover
     st = None
     GSheetsConnection = None
 
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+except Exception:  # pragma: no cover
+    gspread = None
+    Credentials = None
+
 
 DATA_DIR = Path(os.getenv("PARKING_APP_DATA_DIR", "data"))
+GSHEETS_SCOPES = (
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+)
 
 
 def _get_secret_value(section: str, key: str, default: str = "") -> str:
@@ -52,6 +64,28 @@ def _storage_backend() -> str:
 
     secret_value = _get_secret_value("app", "storage_backend", "csv").strip().lower()
     return secret_value or "csv"
+
+
+def _spreadsheet_url() -> str:
+    if st is not None:
+        try:
+            value = st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet", "")
+            if value:
+                return str(value)
+        except Exception:
+            pass
+
+    return os.getenv("PARKING_APP_SPREADSHEET_URL", "")
+
+
+def _normalize_private_key(private_key: str) -> str:
+    key = str(private_key or "").strip().strip('"').strip("'")
+    key = key.replace("\\n", "\n").replace("\r\n", "\n").replace("\r", "\n")
+    key = key.replace("-----BEGIN PRIVATE KEY-----.", "-----BEGIN PRIVATE KEY-----\n")
+    key = key.replace(".-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
+    key = re.sub(r"(-----BEGIN PRIVATE KEY-----)\s*", r"\1\n", key)
+    key = re.sub(r"\s*(-----END PRIVATE KEY-----)", r"\n\1", key)
+    return key.strip()
 
 
 def _use_gsheets() -> bool:
@@ -150,6 +184,51 @@ def get_connection():
     return st.connection("gsheets", type=GSheetsConnection)
 
 
+def _get_gspread_spreadsheet():
+    if st is None or gspread is None or Credentials is None:
+        raise RuntimeError("gspread backend is not available")
+
+    spreadsheet_url = _spreadsheet_url()
+    if not spreadsheet_url:
+        raise RuntimeError("missing [connections.gsheets].spreadsheet")
+
+    try:
+        service_account_info = dict(st.secrets.get("google_service_account", {}))
+    except Exception as exc:
+        raise RuntimeError("missing [google_service_account] secrets") from exc
+
+    service_account_info["private_key"] = _normalize_private_key(
+        service_account_info.get("private_key", "")
+    )
+
+    credentials = Credentials.from_service_account_info(
+        service_account_info,
+        scopes=list(GSHEETS_SCOPES),
+    )
+    client = gspread.authorize(credentials)
+    return client.open_by_url(spreadsheet_url)
+
+
+def _read_gsheet_with_gspread(sheet_title: str) -> pd.DataFrame:
+    spreadsheet = _get_gspread_spreadsheet()
+    worksheet = spreadsheet.worksheet(sheet_title)
+    values = worksheet.get_all_values()
+    if not values:
+        return pd.DataFrame()
+
+    headers = values[0]
+    rows = values[1:]
+    return pd.DataFrame(rows, columns=headers)
+
+
+def _write_gsheet_with_gspread(sheet_title: str, sheet_df: pd.DataFrame) -> None:
+    spreadsheet = _get_gspread_spreadsheet()
+    worksheet = spreadsheet.worksheet(sheet_title)
+    payload = [sheet_df.columns.tolist()] + sheet_df.fillna("").astype(str).values.tolist()
+    worksheet.clear()
+    worksheet.update(range_name="A1", values=payload)
+
+
 def initialize_storage() -> None:
     """
     CSV mode:
@@ -199,8 +278,11 @@ def _write_csv_sheet(worksheet: str, df: pd.DataFrame) -> None:
 def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
     sheet_title = sheet_title_for(worksheet)
     try:
-        conn = get_connection()
-        df = conn.read(worksheet=sheet_title, ttl=ttl)
+        if gspread is not None and Credentials is not None:
+            df = _read_gsheet_with_gspread(sheet_title)
+        else:
+            conn = get_connection()
+            df = conn.read(worksheet=sheet_title, ttl=ttl)
     except Exception as exc:
         if st is not None:
             st.error(f"อ่านข้อมูลจาก Google Sheets ไม่สำเร็จ: {sheet_title}")
@@ -226,13 +308,16 @@ def _read_gsheet(worksheet: str, ttl: int = 0) -> pd.DataFrame:
 
 def _write_gsheet(worksheet: str, df: pd.DataFrame) -> None:
     sheet_title = sheet_title_for(worksheet)
-    conn = get_connection()
 
     normalized = _normalize_columns(worksheet, df.copy())
     sheet_df = _to_sheet_headers(worksheet, normalized)
 
     try:
-        conn.update(worksheet=sheet_title, data=sheet_df)
+        if gspread is not None and Credentials is not None:
+            _write_gsheet_with_gspread(sheet_title, sheet_df)
+        else:
+            conn = get_connection()
+            conn.update(worksheet=sheet_title, data=sheet_df)
     except Exception as exc:
         if st is not None:
             st.error(f"เขียนข้อมูลไปยัง Google Sheets ไม่สำเร็จ: {sheet_title}")
