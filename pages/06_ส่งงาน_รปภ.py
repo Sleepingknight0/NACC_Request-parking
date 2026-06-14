@@ -18,7 +18,29 @@ if open_tasks.empty:
     st.info("ยังไม่มีงานที่เปิดให้ส่ง")
     st.stop()
 
-task_id = st.selectbox("เลือกงาน", open_tasks["task_id"].tolist())
+requests = read_sheet("Requests")
+if not requests.empty:
+    open_tasks = open_tasks.merge(
+        requests[["request_id", "book_no", "source_agency", "car_count"]],
+        on="request_id",
+        how="left",
+    )
+
+open_tasks = open_tasks.sort_values(["parking_date", "created_at"], ascending=[True, False]).reset_index(drop=True)
+
+
+def task_option_label(task_id: str) -> str:
+    row = open_tasks[open_tasks["task_id"].astype(str) == str(task_id)].iloc[0]
+    agency = row.get("source_agency", "") or "ไม่ระบุสำนัก"
+    book_no = row.get("book_no", "") or row.get("request_id", "")
+    return f"{row['parking_date']} | {agency} | {book_no} | {row['parking_location']}"
+
+
+task_id = st.selectbox(
+    "เลือกงาน",
+    open_tasks["task_id"].tolist(),
+    format_func=task_option_label,
+)
 task = open_tasks[open_tasks["task_id"] == task_id].iloc[0].to_dict()
 request = get_request_by_id(task["request_id"])
 if not request:
