@@ -9,7 +9,7 @@ from modules.db import create_request
 from modules.guard_packages import summarize_dates
 from modules.locks import begin_action_lock, end_action_lock, is_action_locked
 from modules.storage import upload_file
-from modules.ui import inject_global_css, render_key_value_table, render_page_title, request_detail_url, with_role_url
+from modules.ui import inject_global_css, render_key_value_table, render_page_title
 from modules.validators import (
     OTHER_LABEL,
     validate_book_no,
@@ -147,9 +147,13 @@ if submitted:
                 )
             st.success(f"บันทึกเลขหนังสือ {book_no} แล้ว")
             col_success1, col_success2, col_success3 = st.columns(3)
-            col_success1.link_button("เปิดรายละเอียด", request_detail_url(request_id), use_container_width=True)
-            col_success2.link_button("บันทึกคำขอใหม่", with_role_url("/บันทึกหนังสือ"), use_container_width=True)
-            col_success3.link_button("ไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+            if col_success1.button("เปิดรายละเอียด", use_container_width=True):
+                st.session_state["selected_request_id"] = request_id
+                st.switch_page("pages/04_รายละเอียดหนังสือ.py")
+            if col_success2.button("บันทึกคำขอใหม่", use_container_width=True):
+                st.rerun()
+            if col_success3.button("ดูประวัติคำขอ", use_container_width=True):
+                st.switch_page("pages/03_รายการหนังสือ.py")
     except Exception as exc:
         st.error(str(exc))
     finally:

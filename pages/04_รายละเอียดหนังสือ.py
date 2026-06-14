@@ -3,8 +3,9 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from modules.auth import ROLE_ADMIN, ROLE_OFFICER, ROLE_VIEWER, get_current_role, require_role
-from modules.db import cancel_request, cancel_request_date, cancel_vehicle, mark_guard_package_done
+from modules.auth import ROLE_ADMIN, ROLE_OFFICER, get_current_role, require_role
+from modules.constants import GUARD_TASK_STATUS_LABELS, GUARD_TASK_STATUSES
+from modules.db import cancel_request, cancel_request_date, cancel_vehicle, mark_guard_package_done, set_guard_package_status
 from modules.guard_packages import build_guard_packages, get_guard_package, summarize_dates
 from modules.locks import begin_action_lock, end_action_lock
 from modules.pdf_generator import build_parking_pdf
@@ -29,7 +30,7 @@ from modules.ui import (
 
 st.set_page_config(page_title="รายละเอียดหนังสือ", page_icon="icon.svg", layout="wide")
 inject_global_css()
-require_role([ROLE_OFFICER, ROLE_ADMIN, ROLE_VIEWER], "request_detail")
+require_role([ROLE_OFFICER, ROLE_ADMIN], "request_detail")
 
 requests = read_sheet("Requests")
 if requests.empty:
@@ -200,6 +201,40 @@ if get_current_role() == ROLE_ADMIN:
         finally:
             end_action_lock(f"done_{request_id}")
 
+    with st.expander("จัดการสถานะ"):
+        st.warning("ใช้เฉพาะกรณีต้องแก้สถานะงาน รปภ. โดยผู้ดูแล ระบบจะบันทึกประวัติทุกครั้ง")
+        selected_status = st.selectbox(
+            "สถานะงาน รปภ.",
+            GUARD_TASK_STATUSES,
+            index=GUARD_TASK_STATUSES.index(package_status) if package_status in GUARD_TASK_STATUSES else 0,
+            format_func=lambda value: GUARD_TASK_STATUS_LABELS.get(value, value),
+        )
+        override_reason = st.text_area(
+            "เหตุผล / หมายเหตุ",
+            placeholder="จำเป็นเมื่อยกเลิก หรือเมื่อ reset งานที่ส่งแล้ว",
+            key=f"status_reason_{request_id}",
+        )
+        if st.button("บันทึกสถานะ", use_container_width=True):
+            if selected_status == "cancelled" and not override_reason.strip():
+                st.error("กรุณาระบุเหตุผลยกเลิก")
+            elif begin_action_lock(f"status_{request_id}"):
+                try:
+                    with st.spinner("กำลังบันทึกสถานะ..."):
+                        set_guard_package_status(
+                            request_id,
+                            selected_status,
+                            reason=override_reason,
+                            user="แอดมิน",
+                        )
+                    st.success("บันทึกสถานะแล้ว")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
+                finally:
+                    end_action_lock(f"status_{request_id}")
+            else:
+                st.warning("ระบบกำลังดำเนินการอยู่ กรุณารอสักครู่")
+
     with st.expander("ยกเลิกข้อมูล"):
         st.warning("การยกเลิกจะไม่ลบข้อมูล แต่จะเปลี่ยนสถานะเป็นยกเลิกและบันทึกประวัติไว้")
         reason = st.text_area("เหตุผลยกเลิก")
@@ -229,10 +264,14 @@ if get_current_role() == ROLE_ADMIN:
                 if not reason.strip():
                     st.error("กรุณาระบุเหตุผลยกเลิก")
                 else:
-                    with st.spinner("กำลังยกเลิกข้อมูล..."):
-                        cancel_request_date(date_id, reason, user=user)
-                    st.success("ยกเลิกวันที่แล้ว")
-                    st.rerun()
+                    if begin_action_lock(f"cancel_date_{date_id}"):
+                        try:
+                            with st.spinner("กำลังยกเลิกข้อมูล..."):
+                                cancel_request_date(date_id, reason, user=user)
+                            st.success("ยกเลิกวันที่แล้ว")
+                            st.rerun()
+                        finally:
+                            end_action_lock(f"cancel_date_{date_id}")
 
         if not vehicles.empty:
             vehicle_options = vehicles["vehicle_id"].tolist()
@@ -245,20 +284,24 @@ if get_current_role() == ROLE_ADMIN:
                 if not reason.strip():
                     st.error("กรุณาระบุเหตุผลยกเลิก")
                 else:
-                    with st.spinner("กำลังยกเลิกข้อมูล..."):
-                        cancel_vehicle(vehicle_id, reason, user=user)
-                    st.success("ยกเลิกทะเบียนแล้ว")
-                    st.rerun()
+                    if begin_action_lock(f"cancel_vehicle_{vehicle_id}"):
+                        try:
+                            with st.spinner("กำลังยกเลิกข้อมูล..."):
+                                cancel_vehicle(vehicle_id, reason, user=user)
+                            st.success("ยกเลิกทะเบียนแล้ว")
+                            st.rerun()
+                        finally:
+                            end_action_lock(f"cancel_vehicle_{vehicle_id}")
 
-with st.expander("ประวัติ"):
-    audit = read_sheet("Audit_Log")
-    request_audit = audit[audit["target_id"].astype(str).isin([request_id] + tasks.get("task_id", pd.Series(dtype=str)).astype(str).tolist())] if not audit.empty else audit
-    render_dataframe(
-        request_audit.sort_values("created_at", ascending=False) if not request_audit.empty else request_audit,
-        ["created_at", "action", "target_table", "user"],
-        worksheet="Audit_Log",
-        empty_text="ยังไม่มีประวัติ",
-    )
+    with st.expander("ประวัติระบบ"):
+        audit = read_sheet("Audit_Log")
+        request_audit = audit[audit["target_id"].astype(str).isin([request_id] + tasks.get("task_id", pd.Series(dtype=str)).astype(str).tolist())] if not audit.empty else audit
+        render_dataframe(
+            request_audit.sort_values("created_at", ascending=False) if not request_audit.empty else request_audit,
+            ["created_at", "action", "target_table", "user"],
+            worksheet="Audit_Log",
+            empty_text="ยังไม่มีประวัติ",
+        )
 
-system_row = {**request, **package}
-render_system_info_expander(system_row)
+    system_row = {**request, **package}
+    render_system_info_expander(system_row)

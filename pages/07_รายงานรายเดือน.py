@@ -1,14 +1,14 @@
 import pandas as pd
 import streamlit as st
 
-from modules.auth import ROLE_ADMIN, ROLE_VIEWER, require_role
+from modules.auth import ROLE_ADMIN, require_role
 from modules.sheets import read_sheet
 from modules.ui import inject_global_css, render_dataframe, render_page_title
 
 
 st.set_page_config(page_title="รายงานรายเดือน", page_icon="icon.svg", layout="wide")
 inject_global_css()
-require_role([ROLE_ADMIN, ROLE_VIEWER], "monthly_report")
+require_role([ROLE_ADMIN], "monthly_report")
 render_page_title("รายงานรายเดือน", "ข้อมูลสรุปพร้อมใช้สำหรับอ้างอิงและส่งออกรายงาน")
 
 requests = read_sheet("Requests")

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from modules.auth import ROLE_ADMIN, ROLE_OFFICER, ROLE_VIEWER, get_current_role, require_role
+from modules.auth import ROLE_ADMIN, ROLE_OFFICER, get_current_role, require_role
 from modules.constants import REQUEST_STATUS_LABELS
 from modules.guard_packages import summarize_dates
 from modules.pdf_generator import build_parking_pdf
@@ -13,7 +13,7 @@ from modules.ui import inject_global_css, render_dataframe, render_page_title, s
 
 st.set_page_config(page_title="รายการหนังสือ", page_icon="icon.svg", layout="wide")
 inject_global_css()
-require_role([ROLE_OFFICER, ROLE_ADMIN, ROLE_VIEWER], "request_list")
+require_role([ROLE_OFFICER, ROLE_ADMIN], "request_list")
 render_page_title("รายการหนังสือ", "ค้นหาด้วยเลขหนังสือ สำนัก/หน่วยงาน หรือทะเบียน")
 
 with st.spinner("กำลังโหลดข้อมูล..."):

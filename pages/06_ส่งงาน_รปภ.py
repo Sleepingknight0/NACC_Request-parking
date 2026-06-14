@@ -10,7 +10,7 @@ from modules.locks import begin_action_lock, end_action_lock
 from modules.pdf_generator import build_parking_pdf
 from modules.sheets import read_sheet
 from modules.storage import upload_file
-from modules.ui import inject_global_css, render_key_value_table, render_page_title, request_detail_url, status_badge, with_role_url
+from modules.ui import inject_global_css, render_key_value_table, render_page_title, status_badge
 from modules.validators import validate_guard_submission
 
 
@@ -36,7 +36,10 @@ with st.spinner("กำลังโหลดข้อมูล..."):
 
 if not request_id:
     render_page_title("ส่งงาน รปภ.", "เลือกงานจากเลขหนังสือ แล้วอัปโหลดรูปใกล้และรูปไกล")
-    open_packages = packages[packages["status"].isin(["pending", "in_progress"])] if not packages.empty else packages
+    open_packages = packages[
+        packages["status"].isin(["pending", "in_progress"])
+        & packages["is_open"].astype(bool)
+    ] if not packages.empty else packages
     if open_packages.empty:
         st.info("ยังไม่มีงานที่เปิดให้ส่ง")
         st.stop()
@@ -98,15 +101,23 @@ st.download_button(
 
 if package["status"] == "done":
     st.info("งานนี้ปิดแล้ว")
-    st.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+    if st.button("กลับไปงาน รปภ.", use_container_width=True):
+        st.switch_page("pages/05_งาน_รปภ.py")
     st.stop()
 if package["status"] == "cancelled":
     st.warning("งานนี้ถูกยกเลิก")
-    st.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+    if st.button("กลับไปงาน รปภ.", use_container_width=True):
+        st.switch_page("pages/05_งาน_รปภ.py")
     st.stop()
 if package["status"] == "submitted":
     st.info("งานนี้ส่งแล้ว รอเจ้าหน้าที่ตรวจ")
-    st.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+    if st.button("กลับไปงาน รปภ.", use_container_width=True):
+        st.switch_page("pages/05_งาน_รปภ.py")
+    st.stop()
+if package["status"] == "pending" and not bool(package.get("is_open", False)):
+    st.warning(f"ยังไม่ถึงวันทำงาน เปิดให้ทำวันที่ {package.get('open_date') or '-'}")
+    if st.button("กลับไปงาน รปภ.", use_container_width=True):
+        st.switch_page("pages/05_งาน_รปภ.py")
     st.stop()
 
 st.info("อัปโหลดรูปใกล้และรูปไกลก่อนส่งงาน")
@@ -145,10 +156,14 @@ if submitted:
                 st.success("ส่งงานแล้ว รอเจ้าหน้าที่ตรวจ")
                 if get_current_role() == ROLE_ADMIN:
                     col1, col2 = st.columns(2)
-                    col1.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
-                    col2.link_button("เปิดรายละเอียดหนังสือ", request_detail_url(request_id), use_container_width=True)
+                    if col1.button("กลับไปงาน รปภ.", use_container_width=True):
+                        st.switch_page("pages/05_งาน_รปภ.py")
+                    if col2.button("เปิดรายละเอียดหนังสือ", use_container_width=True):
+                        st.session_state["selected_request_id"] = request_id
+                        st.switch_page("pages/04_รายละเอียดหนังสือ.py")
                 else:
-                    st.link_button("กลับไปงาน รปภ.", with_role_url("/งาน_รปภ"), use_container_width=True)
+                    if st.button("กลับไปงาน รปภ.", use_container_width=True):
+                        st.switch_page("pages/05_งาน_รปภ.py")
             except Exception as exc:
                 st.error(str(exc))
             finally:

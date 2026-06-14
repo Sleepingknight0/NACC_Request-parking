@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from modules.auth import ROLE_ADMIN, ROLE_VIEWER, require_role
+from modules.auth import ROLE_ADMIN, require_role
 from modules.guard_packages import build_guard_packages
 from modules.sheets import read_sheet
 from modules.ui import inject_global_css, render_dataframe, render_page_title, status_badge
@@ -11,7 +11,7 @@ from modules.ui import inject_global_css, render_dataframe, render_page_title, s
 
 st.set_page_config(page_title="แดชบอร์ด", page_icon="icon.svg", layout="wide")
 inject_global_css()
-require_role([ROLE_ADMIN, ROLE_VIEWER], "dashboard")
+require_role([ROLE_ADMIN], "dashboard")
 render_page_title("แดชบอร์ด", "วันนี้มีงานอะไร งานไหนค้าง และงานไหนส่งแล้วรอตรวจ")
 
 with st.spinner("กำลังโหลดข้อมูล..."):
