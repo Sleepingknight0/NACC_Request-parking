@@ -273,6 +273,13 @@ def get_drive_service():
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
 
+def get_service_account_email() -> str:
+    try:
+        return str(_service_account_info().get("client_email", "") or "")
+    except Exception:
+        return ""
+
+
 def _folder_key(folder: str) -> str:
     key = str(folder or "other").replace("\\", "/").strip("/").split("/")[0]
     return key if key in DRIVE_FOLDER_KEYS else "other"
@@ -470,6 +477,45 @@ def check_drive_connection() -> dict:
         }
     except Exception as exc:
         return {"ok": False, "error": str(exc), "folders": {}}
+
+
+def check_drive_write_access(folder: str = "book_files") -> dict:
+    try:
+        folder_id = ensure_or_get_folder(folder)
+        service = get_drive_service()
+        file_name = f"nacc_drive_healthcheck_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        media = MediaIoBaseUpload(
+            io.BytesIO(b"NACC Drive health check"),
+            mimetype="text/plain",
+            resumable=False,
+        )
+        created = service.files().create(
+            body={"name": file_name, "parents": [folder_id]},
+            media_body=media,
+            fields="id,name,webViewLink",
+            supportsAllDrives=True,
+        ).execute()
+        trashed = False
+        try:
+            service.files().update(
+                fileId=created["id"],
+                body={"trashed": True},
+                fields="id,trashed",
+                supportsAllDrives=True,
+            ).execute()
+            trashed = True
+        except Exception:
+            trashed = False
+        return {
+            "ok": True,
+            "folder": _folder_key(folder),
+            "file_id": created.get("id", ""),
+            "file_name": created.get("name", file_name),
+            "web_url": created.get("webViewLink", ""),
+            "trashed": trashed,
+        }
+    except Exception as exc:
+        return {"ok": False, "folder": _folder_key(folder), "error": str(exc)}
 
 
 def get_drive_config_status() -> dict:

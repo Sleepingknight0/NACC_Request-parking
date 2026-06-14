@@ -13,7 +13,7 @@ from modules.audit import write_audit_log
 from modules.db import cancel_requests, repair_guard_task_packages
 from modules.drive_preview import load_drive_file_for_preview, render_drive_image_preview
 from modules.sheets import initialize_storage, normalize_all_worksheets, read_sheet, validate_storage_schema
-from modules.storage import check_drive_connection, get_drive_config_status, is_drive_url
+from modules.storage import check_drive_connection, check_drive_write_access, get_drive_config_status, get_service_account_email, is_drive_url
 from modules.ui import inject_global_css, is_local_upload_url, render_dataframe, render_page_title
 
 
@@ -30,6 +30,9 @@ status_col1, status_col2, status_col3 = st.columns(3)
 status_col1.metric("file_storage_backend", storage_status["file_storage_backend"])
 status_col2.metric("root_folder_id", "ตั้งค่าแล้ว" if storage_status["root_folder_configured"] else "ยังไม่ตั้งค่า")
 status_col3.metric("share_uploaded_files", "true" if storage_status["share_uploaded_files"] else "false")
+service_account_email = get_service_account_email()
+if service_account_email:
+    st.caption(f"Service account: {service_account_email}")
 
 folder_status_rows = pd.DataFrame(
     {
@@ -60,6 +63,28 @@ if st.button("ตรวจการเชื่อมต่อ Google Drive", us
         st.error("เชื่อมต่อ Google Drive ไม่สำเร็จ")
         with st.expander("รายละเอียดสำหรับผู้ดูแล"):
             st.code(str(drive_check.get("error", "")))
+
+write_check_folder = st.selectbox(
+    "โฟลเดอร์สำหรับตรวจสิทธิ์อัปโหลด",
+    ["book_files", "guard_submissions"],
+    format_func=lambda value: {
+        "book_files": "book_files - หนังสือผู้ขอที่จอด",
+        "guard_submissions": "guard_submissions - รูปส่งงาน รปภ.",
+    }.get(value, value),
+)
+if st.button("ตรวจสิทธิ์อัปโหลด Google Drive", use_container_width=True):
+    with st.spinner("กำลังตรวจสิทธิ์อัปโหลด Google Drive..."):
+        write_check = check_drive_write_access(write_check_folder)
+    if write_check.get("ok"):
+        st.success(f"อัปโหลดไฟล์ทดสอบได้: {write_check.get('file_name')}")
+        if write_check.get("trashed"):
+            st.caption("ลบไฟล์ทดสอบเข้าถังขยะแล้ว")
+        else:
+            st.warning("อัปโหลดได้ แต่ยังลบไฟล์ทดสอบเข้าถังขยะไม่สำเร็จ")
+    else:
+        st.error("อัปโหลดไฟล์ทดสอบไป Google Drive ไม่สำเร็จ")
+        with st.expander("รายละเอียดสำหรับผู้ดูแล"):
+            st.code(str(write_check.get("error", "")))
 
 st.subheader("เครื่องมือซ่อมระบบ")
 confirm_repair = st.checkbox("ยืนยันการเขียนข้อมูลสำหรับเครื่องมือซ่อมระบบ")
