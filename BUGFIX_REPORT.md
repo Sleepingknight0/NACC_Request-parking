@@ -3,6 +3,8 @@
 ## Summary
 Google Drive storage and in-app Drive image preview are implemented. Production now detects the current Drive configuration before writing rows: both provided upload folders are readable, but still located in normal My Drive, so service-account upload is blocked with a clear Thai message and no partial request/submission row is written.
 
+Update 2026-06-15: OAuth-based Google Drive upload support has been added for normal Gmail/My Drive folders. Once `client_id`, `client_secret`, and `refresh_token` are added to Streamlit Secrets with `auth_mode = "oauth"`, uploads will be created in the Drive owner's account instead of the service account.
+
 ## Bugs Found
 | Bug | Root cause | Fix summary | Verification |
 |---|---|---|---|
@@ -10,6 +12,7 @@ Google Drive storage and in-app Drive image preview are implemented. Production 
 | Drive folders were readable but not upload-ready | Normal My Drive folders shared to a service account can be read, but service accounts cannot create owned files there | Added folder preflight using `driveId` and `canAddChildren`; Settings now shows `location` and `upload_ready` | Production Settings shows both folders as `My Drive` and `ยังไม่พร้อม` |
 | Upload failure message was too generic | Drive API exceptions were collapsed into one message | Added error mapping for quota, permissions, missing folders, API disabled, and My Drive folder config | Production officer upload shows the exact Shared Drive fix |
 | Streamlit Cloud kept stale imported storage code | Page scripts reloaded while `modules.storage` stayed cached in the running process | Reloaded `modules.storage` before importing storage functions on upload/settings pages | Production changed from quota API error to My Drive preflight error |
+| Gmail/My Drive cannot be used with service-account upload | Service accounts have no personal My Drive storage quota | Added OAuth Drive credential mode and refresh-token helper script | `python -m pytest -q`: 69 passed; helper script `--help` works |
 | Uploaded file objects could be skipped | Streamlit `UploadedFile` truthiness was used instead of `is not None` | Updated upload guards for book files and extra photos | Regression tests |
 | Reviewers could only open Drive links manually | UI did not download Drive bytes for previews | Added `modules/drive_preview.py` and embedded image preview UI | Parser tests and page smoke checks |
 | Legacy local file links looked durable | Old `uploads/...` values were rendered as links | Added local-path warning and Settings audit count | Production Settings local-file audit renders safely |
@@ -33,6 +36,7 @@ Google Drive storage and in-app Drive image preview are implemented. Production 
 
 ## Automated Verification
 - `python -m pytest -q`: 67 passed
+- `python -m pytest -q` after OAuth support: 69 passed
 - Previous compile smoke check passed: `python -X utf8 -m compileall app.py streamlit_app.py modules pages tests`
 
 ## Production Verification

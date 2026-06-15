@@ -68,12 +68,13 @@
 - Added Settings `location/upload_ready` diagnostics.
 - Fixed Streamlit Cloud stale `modules.storage` imports on upload/settings pages.
 - Verified failed Drive upload no longer reaches Google API quota write and no longer creates partial Sheets rows.
+- Added OAuth Google Drive upload mode for normal My Drive folders. Local verification passed, but production upload still requires OAuth secrets to be configured.
 
 ## Remaining issues
-Production file upload cannot pass until the upload folders are moved to Google Shared Drive or new Shared Drive folder IDs are configured. Current provided folder IDs are still normal My Drive folders.
+Production file upload cannot pass until either OAuth Drive secrets are configured or the upload folders are moved to Google Shared Drive. Current provided folder IDs are normal My Drive folders.
 
 Fix plan:
-1. Create or move `Data base หนังสือผู้ขอที่จอด` and `Data base รปภส่งงาน` into a Google Shared Drive.
-2. Grant the service account Contributor or Content manager access.
-3. Update Streamlit Secrets or send the new folder links/IDs.
+1. Create a Google OAuth client and refresh token for the Drive owner account.
+2. Add `[connections.gdrive].auth_mode = "oauth"` and `[connections.gdrive.oauth]` secrets in Streamlit.
+3. Keep the existing My Drive folder IDs or replace them with the intended folders.
 4. Rerun full production QA for officer upload, guard photo upload, admin preview, request detail preview, and cleanup.

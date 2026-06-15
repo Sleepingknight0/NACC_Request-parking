@@ -9,7 +9,9 @@ from modules.storage import (
     DRIVE_MY_DRIVE_FOLDER_MESSAGE,
     _drive_folder_status,
     describe_drive_upload_error,
+    get_drive_auth_mode,
     get_drive_config,
+    get_drive_oauth_config,
     get_file_storage_backend,
     is_drive_url,
     is_local_upload_url,
@@ -136,3 +138,39 @@ def test_drive_folder_status_requires_shared_drive_for_upload_ready():
     assert my_drive_status["upload_ready"] is False
     assert shared_drive_status["storage_location"] == "Shared Drive"
     assert shared_drive_status["upload_ready"] is True
+
+
+def test_drive_folder_status_allows_my_drive_when_oauth_is_used():
+    status = _drive_folder_status(
+        {
+            "id": "folder_1",
+            "name": "My Drive folder",
+            "mimeType": "application/vnd.google-apps.folder",
+            "capabilities": {"canAddChildren": True},
+        },
+        allow_my_drive=True,
+    )
+
+    assert status["storage_location"] == "My Drive"
+    assert status["upload_ready"] is True
+
+
+def test_drive_auth_mode_uses_oauth_when_refresh_token_is_configured(monkeypatch):
+    oauth_secrets = {
+        "client_id": "client-id.apps.googleusercontent.com",
+        "client_secret": "client-secret",
+        "refresh_token": "refresh-token",
+    }
+
+    def fake_secret_get(*keys, default=""):
+        if keys == ("connections", "gdrive"):
+            return {"oauth": oauth_secrets}
+        if keys == ("connections", "gdrive", "auth_mode"):
+            return ""
+        return default
+
+    monkeypatch.delenv("PARKING_APP_GDRIVE_AUTH_MODE", raising=False)
+    monkeypatch.setattr("modules.storage._secret_get", fake_secret_get)
+
+    assert get_drive_auth_mode() == "oauth"
+    assert get_drive_oauth_config()["refresh_token"] == "refresh-token"

@@ -15,9 +15,13 @@ except Exception:  # pragma: no cover
     st = None
 
 try:
-    from google.oauth2.service_account import Credentials
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials as OAuthCredentials
+    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 except Exception:  # pragma: no cover
-    Credentials = None
+    Request = None
+    OAuthCredentials = None
+    ServiceAccountCredentials = None
 
 try:
     from googleapiclient.discovery import build
@@ -29,6 +33,7 @@ except Exception:  # pragma: no cover
 
 UPLOAD_DIR = Path("uploads")
 DRIVE_MISSING_CONFIG_MESSAGE = "ยังไม่ได้ตั้งค่า Google Drive สำหรับเก็บไฟล์"
+DRIVE_OAUTH_MISSING_CONFIG_MESSAGE = "ยังไม่ได้ตั้งค่า OAuth สำหรับ Google Drive"
 DRIVE_UPLOAD_FAILED_MESSAGE = "อัปโหลดไฟล์ไป Google Drive ไม่สำเร็จ"
 DRIVE_MY_DRIVE_FOLDER_MESSAGE = (
     "โฟลเดอร์ Google Drive ปลายทางยังอยู่ใน My Drive "
@@ -125,6 +130,15 @@ def _normalize_backend(value: str) -> str:
     return text
 
 
+def _normalize_drive_auth_mode(value: str) -> str:
+    text = str(value or "").strip().lower().replace("-", "_")
+    if text in {"oauth", "user_oauth", "google_oauth"}:
+        return "oauth"
+    if text in {"service_account", "sa"}:
+        return "service_account"
+    return text
+
+
 def _app_storage_backend() -> str:
     env_value = os.getenv("PARKING_APP_STORAGE_BACKEND", "").strip()
     if env_value:
@@ -170,6 +184,43 @@ def get_drive_config() -> dict:
         "folders": folder_ids,
         "share_uploaded_files": _as_bool(share_value, default=False),
     }
+
+
+def get_drive_oauth_config() -> dict:
+    connection = _secret_get("connections", "gdrive", default={}) or {}
+    if not isinstance(connection, dict):
+        connection = dict(connection)
+
+    oauth_config = connection.get("oauth", {}) if hasattr(connection, "get") else {}
+    if not isinstance(oauth_config, dict):
+        oauth_config = dict(oauth_config)
+
+    return {
+        "client_id": str(os.getenv("PARKING_APP_GDRIVE_OAUTH_CLIENT_ID", "") or oauth_config.get("client_id", "") or "").strip(),
+        "client_secret": str(os.getenv("PARKING_APP_GDRIVE_OAUTH_CLIENT_SECRET", "") or oauth_config.get("client_secret", "") or "").strip(),
+        "refresh_token": str(os.getenv("PARKING_APP_GDRIVE_OAUTH_REFRESH_TOKEN", "") or oauth_config.get("refresh_token", "") or "").strip(),
+        "token_uri": str(os.getenv("PARKING_APP_GDRIVE_OAUTH_TOKEN_URI", "") or oauth_config.get("token_uri", "") or "https://oauth2.googleapis.com/token").strip(),
+    }
+
+
+def _has_drive_oauth_config() -> bool:
+    config = get_drive_oauth_config()
+    return bool(config["client_id"] and config["client_secret"] and config["refresh_token"])
+
+
+def get_drive_auth_mode() -> str:
+    env_value = os.getenv("PARKING_APP_GDRIVE_AUTH_MODE", "").strip()
+    if env_value:
+        return _normalize_drive_auth_mode(env_value)
+
+    secret_value = _secret_get("connections", "gdrive", "auth_mode", default="")
+    if secret_value:
+        return _normalize_drive_auth_mode(str(secret_value))
+
+    if _has_drive_oauth_config():
+        return "oauth"
+
+    return "service_account"
 
 
 def _has_drive_config() -> bool:
@@ -280,7 +331,7 @@ def _read_uploaded_file_bytes(file) -> bytes:
 
 
 def _service_account_info() -> dict:
-    if st is None or Credentials is None:
+    if st is None or ServiceAccountCredentials is None:
         raise RuntimeError("Google API backend is not available")
 
     try:
@@ -301,14 +352,42 @@ def _service_account_info() -> dict:
 
 
 def get_drive_service():
-    if build is None or MediaIoBaseUpload is None or Credentials is None:
+    if build is None or MediaIoBaseUpload is None:
         raise RuntimeError("Google Drive API client is not installed")
 
-    credentials = Credentials.from_service_account_info(
-        _service_account_info(),
+    auth_mode = get_drive_auth_mode()
+    if auth_mode == "oauth":
+        credentials = _drive_oauth_credentials()
+    elif auth_mode == "service_account":
+        if ServiceAccountCredentials is None:
+            raise RuntimeError("Google service account client is not installed")
+        credentials = ServiceAccountCredentials.from_service_account_info(
+            _service_account_info(),
+            scopes=list(GSHEETS_SCOPES),
+        )
+    else:
+        raise DriveStorageConfigError(f"ไม่รองรับ Drive auth_mode: {auth_mode}")
+    return build("drive", "v3", credentials=credentials, cache_discovery=False)
+
+
+def _drive_oauth_credentials():
+    if OAuthCredentials is None or Request is None:
+        raise RuntimeError("Google OAuth client is not installed")
+
+    config = get_drive_oauth_config()
+    if not (config["client_id"] and config["client_secret"] and config["refresh_token"]):
+        raise DriveStorageConfigError(DRIVE_OAUTH_MISSING_CONFIG_MESSAGE)
+
+    credentials = OAuthCredentials(
+        token=None,
+        refresh_token=config["refresh_token"],
+        token_uri=config["token_uri"],
+        client_id=config["client_id"],
+        client_secret=config["client_secret"],
         scopes=list(GSHEETS_SCOPES),
     )
-    return build("drive", "v3", credentials=credentials, cache_discovery=False)
+    credentials.refresh(Request())
+    return credentials
 
 
 def get_service_account_email() -> str:
@@ -327,7 +406,7 @@ def _drive_query_escape(value: str) -> str:
     return str(value or "").replace("\\", "\\\\").replace("'", "\\'")
 
 
-def _drive_folder_status(meta: dict) -> dict:
+def _drive_folder_status(meta: dict, *, allow_my_drive: bool = False) -> dict:
     capabilities = meta.get("capabilities", {})
     if not isinstance(capabilities, dict):
         capabilities = {}
@@ -347,7 +426,7 @@ def _drive_folder_status(meta: dict) -> dict:
         "is_folder": is_folder,
         "is_shared_drive": is_shared_drive,
         "can_add_children": can_add_children,
-        "upload_ready": is_folder and is_shared_drive and can_add_children is not False,
+        "upload_ready": is_folder and (is_shared_drive or allow_my_drive) and can_add_children is not False,
     }
 
 
@@ -361,11 +440,12 @@ def _get_drive_folder_metadata(service, folder_id: str) -> dict:
 
 def ensure_drive_folder_upload_ready(folder_id: str, service=None) -> dict:
     service = service or get_drive_service()
-    status = _drive_folder_status(_get_drive_folder_metadata(service, folder_id))
+    allow_my_drive = get_drive_auth_mode() == "oauth"
+    status = _drive_folder_status(_get_drive_folder_metadata(service, folder_id), allow_my_drive=allow_my_drive)
 
     if not status["is_folder"]:
         raise DriveStorageConfigError(DRIVE_FOLDER_NOT_FOLDER_MESSAGE)
-    if not status["is_shared_drive"]:
+    if not status["is_shared_drive"] and not allow_my_drive:
         raise DriveStorageConfigError(DRIVE_MY_DRIVE_FOLDER_MESSAGE)
     if status["can_add_children"] is False:
         raise DriveStorageConfigError(DRIVE_FOLDER_NO_WRITE_MESSAGE)
@@ -539,7 +619,8 @@ def check_drive_connection() -> dict:
     try:
         service = get_drive_service()
         root = _get_drive_folder_metadata(service, target_folder_id)
-        root_status = _drive_folder_status(root)
+        allow_my_drive = get_drive_auth_mode() == "oauth"
+        root_status = _drive_folder_status(root, allow_my_drive=allow_my_drive)
         folder_results = {}
         for key, folder_id in config["folders"].items():
             if not folder_id:
@@ -552,7 +633,7 @@ def check_drive_connection() -> dict:
                 }
                 continue
             meta = _get_drive_folder_metadata(service, folder_id)
-            folder_status = _drive_folder_status(meta)
+            folder_status = _drive_folder_status(meta, allow_my_drive=allow_my_drive)
             folder_results[key] = {
                 "configured": True,
                 "ok": True,
@@ -569,6 +650,7 @@ def check_drive_connection() -> dict:
             "root_upload_ready": root_status["upload_ready"],
             "root_configured": bool(config["root_folder_id"]),
             "share_uploaded_files": config["share_uploaded_files"],
+            "drive_auth_mode": get_drive_auth_mode(),
             "folders": folder_results,
         }
     except Exception as exc:
@@ -626,6 +708,8 @@ def get_drive_config_status() -> dict:
     config = get_drive_config()
     return {
         "file_storage_backend": get_file_storage_backend(),
+        "drive_auth_mode": get_drive_auth_mode(),
+        "oauth_configured": _has_drive_oauth_config(),
         "root_folder_configured": bool(config["root_folder_id"]),
         "folder_configured": {key: bool(value) for key, value in config["folders"].items()},
         "share_uploaded_files": config["share_uploaded_files"],

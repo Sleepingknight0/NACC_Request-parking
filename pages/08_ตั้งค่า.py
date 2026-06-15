@@ -33,10 +33,12 @@ st.subheader("สถานะที่เก็บไฟล์")
 storage_status = get_drive_config_status()
 status_col1, status_col2, status_col3 = st.columns(3)
 status_col1.metric("file_storage_backend", storage_status["file_storage_backend"])
-status_col2.metric("root_folder_id", "ตั้งค่าแล้ว" if storage_status["root_folder_configured"] else "ยังไม่ตั้งค่า")
+status_col2.metric("drive_auth_mode", storage_status["drive_auth_mode"])
 status_col3.metric("share_uploaded_files", "true" if storage_status["share_uploaded_files"] else "false")
+st.caption(f"OAuth Drive: {'ตั้งค่าแล้ว' if storage_status['oauth_configured'] else 'ยังไม่ตั้งค่า'}")
+st.caption(f"root_folder_id: {'ตั้งค่าแล้ว' if storage_status['root_folder_configured'] else 'ยังไม่ตั้งค่า'}")
 service_account_email = get_service_account_email()
-if service_account_email:
+if service_account_email and storage_status["drive_auth_mode"] == "service_account":
     st.caption(f"Service account: {service_account_email}")
 
 folder_status_rows = pd.DataFrame(
