@@ -105,7 +105,8 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("จำนวนรถ", request["car_count"])
 col2.metric("จุดจอด", request["parking_location"])
 col3.metric("วันที่จอด", dates_text)
-col4.metric("งาน รปภ.", package.get("status", request.get("status", "")))
+package_status_raw = str(package.get("status", request.get("status", "")))
+col4.metric("งาน รปภ.", GUARD_TASK_STATUS_LABELS.get(package_status_raw, package_status_raw))
 
 st.subheader("สรุปคำขอ")
 render_key_value_table(
@@ -198,7 +199,7 @@ with st.expander("ประวัติ"):
 
 if get_current_role() == ROLE_ADMIN:
     st.subheader("การดำเนินการแอดมิน")
-    package_status = str(package.get("status", request.get("status", "")))
+    package_status = package_status_raw
     if package_status == "done":
         st.info("งานนี้ปิดแล้ว")
     elif package_status == "cancelled":
