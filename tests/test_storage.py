@@ -7,6 +7,7 @@ import pytest
 from modules.storage import (
     DriveStorageConfigError,
     DRIVE_MY_DRIVE_FOLDER_MESSAGE,
+    DRIVE_OAUTH_SCOPES,
     _drive_folder_status,
     describe_drive_upload_error,
     get_drive_auth_mode,
@@ -109,6 +110,13 @@ def test_describe_drive_upload_error_explains_permission_denied():
     assert "service account" in message
 
 
+def test_describe_drive_upload_error_explains_invalid_oauth_scope():
+    message = describe_drive_upload_error(RuntimeError("invalid_scope: Bad Request"))
+
+    assert "OAuth" in message
+    assert "Google Drive" in message
+
+
 def test_describe_drive_upload_error_preserves_drive_config_error():
     exc = DriveStorageConfigError(DRIVE_MY_DRIVE_FOLDER_MESSAGE)
 
@@ -174,3 +182,7 @@ def test_drive_auth_mode_uses_oauth_when_refresh_token_is_configured(monkeypatch
 
     assert get_drive_auth_mode() == "oauth"
     assert get_drive_oauth_config()["refresh_token"] == "refresh-token"
+
+
+def test_drive_oauth_scope_is_drive_only():
+    assert DRIVE_OAUTH_SCOPES == ("https://www.googleapis.com/auth/drive",)

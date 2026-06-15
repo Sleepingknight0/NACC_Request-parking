@@ -32,6 +32,7 @@ except Exception:  # pragma: no cover
 
 
 UPLOAD_DIR = Path("uploads")
+DRIVE_OAUTH_SCOPES = ("https://www.googleapis.com/auth/drive",)
 DRIVE_MISSING_CONFIG_MESSAGE = "ยังไม่ได้ตั้งค่า Google Drive สำหรับเก็บไฟล์"
 DRIVE_OAUTH_MISSING_CONFIG_MESSAGE = "ยังไม่ได้ตั้งค่า OAuth สำหรับ Google Drive"
 DRIVE_UPLOAD_FAILED_MESSAGE = "อัปโหลดไฟล์ไป Google Drive ไม่สำเร็จ"
@@ -82,6 +83,9 @@ def describe_drive_upload_error(exc: Exception) -> str:
 
     if "drive api" in lower_text and ("disabled" in lower_text or "not been used" in lower_text):
         return "ยังไม่ได้เปิดใช้งาน Google Drive API สำหรับโปรเจกต์นี้"
+
+    if "invalid_scope" in lower_text:
+        return "scope ของ Google OAuth ไม่ถูกต้อง กรุณาสร้าง refresh token ด้วยสิทธิ์ Google Drive"
 
     return "กรุณาตรวจการตั้งค่า Google Drive และลองใหม่อีกครั้ง"
 
@@ -384,7 +388,7 @@ def _drive_oauth_credentials():
         token_uri=config["token_uri"],
         client_id=config["client_id"],
         client_secret=config["client_secret"],
-        scopes=list(GSHEETS_SCOPES),
+        scopes=list(DRIVE_OAUTH_SCOPES),
     )
     credentials.refresh(Request())
     return credentials
