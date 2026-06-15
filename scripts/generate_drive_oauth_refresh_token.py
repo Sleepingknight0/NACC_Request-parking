@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import secrets
 import urllib.parse
@@ -62,11 +63,12 @@ def exchange_code_for_tokens(client_id: str, client_secret: str, code: str, redi
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate a Google Drive OAuth refresh token.")
     parser.add_argument("--client-id", required=True)
-    parser.add_argument("--client-secret", required=True)
+    parser.add_argument("--client-secret", default="")
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
 
+    client_secret = args.client_secret or getpass.getpass("Google OAuth client secret: ")
     redirect_uri = f"http://{args.host}:{args.port}/oauth2callback"
     state = secrets.token_urlsafe(24)
     params = {
@@ -96,7 +98,7 @@ def main() -> int:
 
     tokens = exchange_code_for_tokens(
         args.client_id,
-        args.client_secret,
+        client_secret,
         server.authorization_code,
         redirect_uri,
     )
@@ -109,7 +111,7 @@ def main() -> int:
     print("\nAdd this to Streamlit Secrets. Do not commit it:")
     print("[connections.gdrive.oauth]")
     print(f'client_id = "{args.client_id}"')
-    print(f'client_secret = "{args.client_secret}"')
+    print(f'client_secret = "{client_secret}"')
     print(f'refresh_token = "{refresh_token}"')
     print('token_uri = "https://oauth2.googleapis.com/token"')
     return 0
