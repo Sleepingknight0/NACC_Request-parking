@@ -37,9 +37,15 @@ Codes are stored in the sheet; Thai labels are rendered in the UI.
 
 ## Requirements
 
-- Python 3.10+
+- Python **3.11** (the version pinned in `.devcontainer/devcontainer.json`)
 - A Google Cloud project with the **Google Sheets API** and **Google Drive API** enabled
 - A service account for Sheets, and a Drive account (service account on a Shared Drive, or OAuth for My Drive)
+
+## Run in GitHub Codespaces
+
+The fastest way to get a running instance. Open the repo in a Codespace and the devcontainer installs `requirements.txt` and starts Streamlit on port 8501 automatically, with a preview tab opening on its own.
+
+You still need to add `.streamlit/secrets.toml` inside the Codespace before the Google backends will work — or leave the storage backend unset to run against the CSV files in `data/`.
 
 ## Setup
 
@@ -197,3 +203,7 @@ Troubleshooting:
 
 - `BUGFIX_REPORT.md` — recorded defects and their fixes
 - `TEST_REPORT.md` — test run results
+
+## License
+
+MIT — see [LICENSE](LICENSE).
