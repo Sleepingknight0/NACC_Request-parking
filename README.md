@@ -1,123 +1,111 @@
-# ระบบขอที่จอดรถ ป.ป.ช. — NACC Parking Request System
+# NACC Parking Request System
 
-Streamlit app for recording and tracking parking requests for the Office of the National Anti-Corruption Commission (สำนักงาน ป.ป.ช.). A request starts from an official letter (หนังสือ), gains vehicles and parking dates, becomes a job for the security team (รปภ.), and ends with a submitted photo record and a generated PDF summary.
+A Streamlit workflow for recording, tracking, and completing official parking requests for the Office of the National Anti-Corruption Commission.
 
-Data lives in Google Sheets and uploaded files in Google Drive, so the whole system runs on Streamlit Community Cloud with no server to maintain. A local CSV mode is available for development.
+The system follows each request from the incoming official letter through vehicle scheduling, security execution, photo evidence, reporting, and PDF generation.
 
-## Pages
+## Overview
 
-The app is a Streamlit multipage app; the entry point renders the home screen and `pages/` provides the rest.
+The application supports Google Sheets as the operational data store and Google Drive as the production file store. A CSV and local-file mode is available for development without cloud credentials.
 
-| Page | Purpose |
-|------|---------|
-| `01_แดชบอร์ด` | Dashboard — current status overview |
-| `02_บันทึกหนังสือ` | Record a new letter and its request details |
-| `03_รายการหนังสือ` | Browse and filter letters |
-| `04_รายละเอียดหนังสือ` | Letter detail — vehicles, dates, attachments |
-| `05_งาน_รปภ` | Security team job queue |
-| `06_ส่งงาน_รปภ` | Security team submission with photo upload |
-| `07_รายงานรายเดือน` | Monthly report |
-| `08_ตั้งค่า` | Settings |
+The user interface is localized for Thai operational staff. This documentation is maintained in English.
+
+## Workflow
+
+1. Record the official letter and request details.
+2. Add parking dates, vehicles, locations, and supporting files.
+3. Track the request through its operational status.
+4. Package the approved work for the security team.
+5. Upload completion evidence from the field.
+6. Review monthly activity and generate PDF summaries.
+
+## Application pages
+
+| Order | Page purpose                                      |
+| ----: | ------------------------------------------------- |
+|     1 | Dashboard and current status overview             |
+|     2 | New official-letter and request entry             |
+|     3 | Searchable request list                           |
+|     4 | Request details, dates, vehicles, and attachments |
+|     5 | Security team job queue                           |
+|     6 | Security completion and photo submission          |
+|     7 | Monthly reporting                                 |
+|     8 | Application settings                              |
+
+The entry point renders the home screen. The `pages/` directory contains the eight localized Streamlit pages.
 
 ## Data model
 
-Worksheets (or CSV files under `data/` in local mode): `Requests`, `Request_Dates`, `Vehicles`, `Guard_Tasks`, `Attachments`, `Audit_Log`.
+The storage layer uses six logical tables or worksheets:
 
-Statuses are fixed sets defined in `modules/constants.py`:
+- `Requests`
+- `Request_Dates`
+- `Vehicles`
+- `Guard_Tasks`
+- `Attachments`
+- `Audit_Log`
 
-| Entity | Statuses |
-|--------|----------|
-| Request | `draft` · `pending` · `active` · `done` · `cancelled` |
-| Request date | `pending` · `active` · `done` · `cancelled` |
-| Vehicle | `active` · `cancelled` |
-| Guard task | `pending` · `in_progress` · `submitted` · `done` · `cancelled` |
-| Attachment | `active` · `deleted` · `replaced` |
+Local development represents the same entities as CSV files under `data/`.
 
-Codes are stored in the sheet; Thai labels are rendered in the UI.
+### Status values
+
+| Entity       | Allowed values                                             |
+| ------------ | ---------------------------------------------------------- |
+| Request      | `draft`, `pending`, `active`, `done`, `cancelled`          |
+| Request date | `pending`, `active`, `done`, `cancelled`                   |
+| Vehicle      | `active`, `cancelled`                                      |
+| Guard task   | `pending`, `in_progress`, `submitted`, `done`, `cancelled` |
+| Attachment   | `active`, `deleted`, `replaced`                            |
+
+Status codes are stored in English. Localized labels are defined in `modules/constants.py` and rendered by the interface.
 
 ## Requirements
 
-- Python **3.11** (the version pinned in `.devcontainer/devcontainer.json`)
-- A Google Cloud project with the **Google Sheets API** and **Google Drive API** enabled
-- A service account for Sheets, and a Drive account (service account on a Shared Drive, or OAuth for My Drive)
+- Python 3.11.
+- Google Sheets API access for the production data backend.
+- Google Drive API access for production file storage.
+- A service account for Sheets.
+- A Shared Drive service account or an OAuth-enabled user account for Drive uploads.
 
-## Run in GitHub Codespaces
+## Installation
 
-The fastest way to get a running instance. Open the repo in a Codespace and the devcontainer installs `requirements.txt` and starts Streamlit on port 8501 automatically, with a preview tab opening on its own.
-
-You still need to add `.streamlit/secrets.toml` inside the Codespace before the Google backends will work — or leave the storage backend unset to run against the CSV files in `data/`.
-
-## Setup
+Create and activate a virtual environment:
 
 ```bash
-pip install -r requirements.txt
-cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+python -m venv .venv
 ```
 
-Fill in `.streamlit/secrets.toml` — see [Configuration](#configuration) below. Then:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
+```
+
+Update `.streamlit/secrets.toml` for the intended backend, then start the application:
 
 ```bash
 streamlit run streamlit_app.py
 ```
 
-### Local development without Google
+`app.py` is an equivalent entry-point alias.
 
-Leave `[app].storage_backend` unset (it defaults to `csv`) and the app reads and writes the CSV files in `data/`, with uploads going to `uploads/`. This needs no Google credentials, and is the fastest way to click through the app.
+## Local development without Google
 
-Environment variables override secrets, which is handy for local runs:
+Leave `storage_backend` unset or set it to `csv`. The application writes entity data under `data/` and uploaded files under `uploads/`.
 
-- `PARKING_APP_STORAGE_BACKEND`
-- `PARKING_APP_FILE_STORAGE_BACKEND`
+This mode requires no Google credentials and is the quickest way to review the interface and workflow.
 
-## Tests
-
-```bash
-pytest
-```
-
-Covers auth, date logic, validators, status transitions, guard workflow and packaging, sheet titles, storage, Drive preview, PDF logic, and upload pages.
-
-## Layout
+These environment variables override the matching application settings:
 
 ```text
-streamlit_app.py    # entry point (app.py is an equivalent alias)
-modules/
-  auth.py           # login and role checks
-  db.py             # data access over the active storage backend
-  sheets.py         # Google Sheets connection and worksheet I/O
-  storage.py        # backend selection, Drive config, file uploads
-  drive_preview.py  # render private Drive files inside Streamlit
-  guard_packages.py # security team job packaging
-  pdf_generator.py  # ReportLab PDF output
-  dates.py          # parking date handling
-  validators.py     # input validation
-  locks.py          # concurrent edit guards
-  audit.py          # audit log writes
-  constants.py      # statuses, labels, departments, locations
-  ids.py            # ID generation
-  ui.py             # shared UI components
-  home.py           # home screen
-  line_ready.py     # LINE notification payloads
-pages/              # eight Thai-language Streamlit pages
-data/               # CSV store for local mode
-uploads/            # local upload fallback
-assets/fonts/       # Thai fonts for PDF generation
-scripts/            # generate_drive_oauth_refresh_token.py
-tests/              # pytest suite
+PARKING_APP_STORAGE_BACKEND
+PARKING_APP_FILE_STORAGE_BACKEND
 ```
 
-## Configuration
+## Google backend configuration
 
-### Google Drive file storage
-
-Production uploads should use Google Drive, not local `uploads/...` paths.
-
-Required setup:
-
-1. Enable Google Drive API and Google Sheets API for the Google Cloud project used by the service account.
-2. For a normal Gmail/My Drive folder, use OAuth upload. Service-account upload only works reliably with Google Shared Drive, because service accounts do not have My Drive storage quota.
-3. Share the Google Sheet and the target Drive folder with the service account email.
-4. Configure Streamlit Secrets:
+Use `gsheets` for records and `google_drive` for durable production uploads:
 
 ```toml
 [app]
@@ -129,7 +117,7 @@ spreadsheet = "https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit"
 
 [connections.gdrive]
 auth_mode = "oauth"
-root_folder_id = "<GOOGLE_DRIVE_ROOT_FOLDER_ID>"
+root_folder_id = "<ROOT_FOLDER_ID>"
 share_uploaded_files = false
 
 [connections.gdrive.folders]
@@ -139,71 +127,93 @@ generated_pdfs = "<GENERATED_PDFS_FOLDER_ID>"
 other = "<OTHER_FOLDER_ID>"
 
 [connections.gdrive.oauth]
-client_id = "<GOOGLE_OAUTH_CLIENT_ID>"
-client_secret = "<GOOGLE_OAUTH_CLIENT_SECRET>"
-refresh_token = "<GOOGLE_OAUTH_REFRESH_TOKEN>"
+client_id = "<OAUTH_CLIENT_ID>"
+client_secret = "<OAUTH_CLIENT_SECRET>"
+refresh_token = "<OAUTH_REFRESH_TOKEN>"
 token_uri = "https://oauth2.googleapis.com/token"
 ```
 
-Folder-specific IDs are recommended. If only `root_folder_id` is configured, the app will create or reuse direct child folders named `book_files`, `guard_submissions`, `generated_pdfs`, and `other`.
+Use folder-specific IDs when possible. If only `root_folder_id` is set, the application creates or reuses direct child folders for each supported file category.
 
-### OAuth setup for My Drive uploads
+Keep `share_uploaded_files` set to `false` unless uploaded files must be available to anyone with the link.
 
-Use this when the Google Drive account does not have Shared Drive.
+### My Drive uploads with OAuth
 
-1. Google Cloud Console > APIs & Services > OAuth consent screen.
-2. Create or configure the OAuth app. Add the Google account that owns the Drive folders as a test user if the app is in testing mode.
-3. APIs & Services > Credentials > Create credentials > OAuth client ID.
-4. Choose a desktop app or web app client and copy `client_id` and `client_secret`.
-5. Generate a refresh token for the Drive owner account with Drive scope:
-   `https://www.googleapis.com/auth/drive`
-   You can use the helper script:
-   ```powershell
-   python scripts/generate_drive_oauth_refresh_token.py `
-     --client-id "GOOGLE_OAUTH_CLIENT_ID" `
-     --client-secret "GOOGLE_OAUTH_CLIENT_SECRET"
-   ```
-   If Google says the redirect URI is invalid, add this authorized redirect URI to the OAuth client:
-   `http://localhost:8765/oauth2callback`
-6. Put `client_id`, `client_secret`, and `refresh_token` in Streamlit Secrets under `[connections.gdrive.oauth]`.
-7. Set `[connections.gdrive].auth_mode = "oauth"`.
+Service accounts do not have normal My Drive storage quota. Use OAuth when the target folders belong to a standard Google account.
 
-With OAuth, uploaded files are created in the Drive owner's My Drive account, so normal My Drive folders can be used. Google Sheets can still use the service account.
+1. Enable the Google Drive and Google Sheets APIs.
+2. Configure an OAuth consent screen and add the Drive owner as a test user when required.
+3. Create a desktop or web OAuth client.
+4. Generate a refresh token with the `https://www.googleapis.com/auth/drive` scope.
+5. Store the client ID, client secret, and refresh token under `[connections.gdrive.oauth]`.
+6. Set `auth_mode` to `oauth`.
 
-The current production defaults are:
+The helper script can generate the refresh token:
 
-- `book_files`: `Data base หนังสือผู้ขอที่จอด`
-- `guard_submissions`: `Data base รปภส่งงาน`
+```powershell
+python scripts\generate_drive_oauth_refresh_token.py `
+  --client-id "<OAUTH_CLIENT_ID>" `
+  --client-secret "<OAUTH_CLIENT_SECRET>"
+```
 
-Streamlit Secrets or environment variables override these defaults.
-
-`share_uploaded_files = false` keeps uploaded files private and relies on Drive folder permissions. Set it to `true` only if files should be opened by anyone with the link.
+Add `http://localhost:8765/oauth2callback` to the OAuth client when Google requires an authorized redirect URI.
 
 ## Drive preview behavior
 
-Guard-submitted photos are stored as Drive URLs in Google Sheets and previewed inside Streamlit by downloading bytes through the service account. This means private Drive files can still render in the app when the service account has access.
+The application stores Drive URLs in the data backend and downloads private image bytes through the configured credentials for inline previews.
 
-If users need to open Drive links directly, the Drive folder or file permissions must allow those users. Existing `uploads/...` rows are temporary legacy paths and should be re-uploaded or migrated to Drive; the app shows a warning instead of rendering them as durable links.
+PNG, JPEG, JPG, and WebP images can be previewed. PDF files are presented as links or downloads.
 
-Troubleshooting:
+Common failures include missing folder permissions, a disabled Drive API, service-account storage limits, an invalid refresh token, or a stale file ID.
 
-- Permission denied: share the Drive folder with the service account and confirm Drive API is enabled.
-- Storage quota exceeded with `auth_mode = service_account`: move the folder into a Google Shared Drive or switch to `auth_mode = "oauth"`.
-- OAuth upload fails: confirm the refresh token belongs to the account that can write to the target Drive folders and that Google Drive API is enabled.
-- File not found: verify the stored Drive URL/file ID and folder permissions.
-- Local upload path: re-upload the file so Google Sheets stores a Drive URL.
-- Unsupported file type: image previews support PNG, JPEG, JPG, and WebP; PDFs show a Drive link/download instead of inline image preview.
+## Testing
 
-## Security notes
+Run the complete automated suite from the repository root:
 
-- `.streamlit/secrets.toml` holds a service account private key and an OAuth refresh token — it is gitignored and must never be committed.
-- `data/` and `uploads/` may contain real request records and photos when the local backend has been used. Check before pushing.
+```bash
+pytest
+```
 
-## Related docs
+The tests cover authentication, date logic, validation, status transitions, security workflows, storage, Google Drive previews, PDF logic, empty states, and upload pages.
 
-- `BUGFIX_REPORT.md` — recorded defects and their fixes
-- `TEST_REPORT.md` — test run results
+## Repository structure
+
+```text
+.
+|-- streamlit_app.py            # Primary Streamlit entry point
+|-- app.py                      # Equivalent entry-point alias
+|-- modules/                    # Domain, storage, authentication, and UI modules
+|-- pages/                      # Eight localized application pages
+|-- scripts/                    # OAuth setup utility
+|-- tests/                      # Pytest suite
+|-- data/                       # Local CSV backend
+|-- uploads/                    # Local upload backend
+|-- assets/fonts/               # Fonts used for generated PDFs
+|-- .streamlit/                 # Streamlit settings and secret template
+|-- BUGFIX_REPORT.md            # Recorded defects and resolutions
+`-- TEST_REPORT.md              # Test execution record
+```
+
+## Security and data handling
+
+- Never commit `.streamlit/secrets.toml`, service account keys, OAuth secrets, or refresh tokens.
+- Treat local CSV files and uploads as potentially sensitive operational records.
+- Review `data/` and `uploads/` before every push.
+- Keep Drive files private unless the operational process requires link sharing.
+- Grant the minimum Google permissions required by the application.
+- Rotate credentials immediately if a secret is exposed.
+
+## GitHub Codespaces
+
+The development container installs the Python dependencies and starts Streamlit on port `8501`.
+
+Add `.streamlit/secrets.toml` inside the Codespace for Google-backed operation. Leave the storage backend in CSV mode for a credential-free review.
+
+## Related documentation
+
+- [`BUGFIX_REPORT.md`](BUGFIX_REPORT.md) records resolved defects.
+- [`TEST_REPORT.md`](TEST_REPORT.md) records test results.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Released under the [MIT License](LICENSE).
