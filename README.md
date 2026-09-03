@@ -105,7 +105,7 @@ PARKING_APP_FILE_STORAGE_BACKEND
 
 ## Google backend configuration
 
-Use `gsheets` for records and `google_drive` for durable production uploads:
+Use `gsheets` for records and `google_drive` for durable production uploads. The Sheets backend also requires a `[google_service_account]` block (see `.streamlit/secrets.toml.example`):
 
 ```toml
 [app]
@@ -114,6 +114,16 @@ file_storage_backend = "google_drive"
 
 [connections.gsheets]
 spreadsheet = "https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit"
+
+# Required for the Sheets API path used by this application
+[google_service_account]
+type = "service_account"
+project_id = "<GCP_PROJECT_ID>"
+private_key_id = "<PRIVATE_KEY_ID>"
+private_key = "-----BEGIN PRIVATE KEY-----\n<PRIVATE_KEY>\n-----END PRIVATE KEY-----\n"
+client_email = "<SERVICE_ACCOUNT_EMAIL>"
+client_id = "<CLIENT_ID>"
+token_uri = "https://oauth2.googleapis.com/token"
 
 [connections.gdrive]
 auth_mode = "oauth"
@@ -188,7 +198,7 @@ The tests cover authentication, date logic, validation, status transitions, secu
 |-- tests/                      # Pytest suite
 |-- data/                       # Local CSV backend
 |-- uploads/                    # Local upload backend
-|-- assets/fonts/               # Fonts used for generated PDFs
+|-- assets/fonts/               # Optional Thai TTF fonts for PDF generation
 |-- .streamlit/                 # Streamlit settings and secret template
 |-- BUGFIX_REPORT.md            # Recorded defects and resolutions
 `-- TEST_REPORT.md              # Test execution record
