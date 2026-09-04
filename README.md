@@ -36,16 +36,19 @@ The entry point renders the home screen. The `pages/` directory contains the eig
 
 ## Data model
 
-The storage layer uses six logical tables or worksheets:
+The storage layer uses seven logical tables or worksheets:
 
 - `Requests`
 - `Request_Dates`
 - `Vehicles`
 - `Guard_Tasks`
+- `Guard_Submissions`
 - `Attachments`
 - `Audit_Log`
 
-Local development represents the same entities as CSV files under `data/`.
+`Guard_Submissions` stores security completion payloads linked to guard tasks. Local development represents the same entities as CSV files under `data/`.
+
+In Google Sheets mode the spreadsheet must already contain worksheets with these exact names. The application does not create worksheets automatically.
 
 ### Status values
 
