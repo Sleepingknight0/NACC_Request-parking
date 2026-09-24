@@ -6,7 +6,7 @@ The system follows each request from the incoming official letter through vehicl
 
 ## Overview
 
-The application supports Google Sheets as the operational data store and Google Drive as the production file store. A CSV and local-file mode is available for development without cloud credentials.
+The application supports Google Sheets as the operational data store and Google Drive as the production file store. CSV and local-file mode is available for development without cloud credentials.
 
 The user interface is localized for Thai operational staff. This documentation is maintained in English.
 
